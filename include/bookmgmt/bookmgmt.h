@@ -10,3 +10,5 @@
 #include "bookmgmt/Money.h"
 #include "bookmgmt/Resource.h"
 #include "bookmgmt/EBook.h"
+#include "bookmgmt/AudioBook.h"
+#include "bookmgmt/Thesis.h"

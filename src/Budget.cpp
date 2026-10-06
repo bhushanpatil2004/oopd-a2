@@ -14,7 +14,9 @@ const ResourceCategory kAllCategories[] = {
     ResourceCategory::Book,
     ResourceCategory::Journal,
     ResourceCategory::ElectronicResource,
-    ResourceCategory::EBook
+    ResourceCategory::EBook,
+    ResourceCategory::AudioBook,
+    ResourceCategory::Thesis
 };
 } //namespace
 

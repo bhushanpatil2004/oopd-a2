@@ -206,6 +206,61 @@ static void testBudget() {
         ResourceCategory::EBook,
         2,
         Money::of(2600)).empty());
+
+        // Q3: AudioBook
+    AudioBook audiobook(
+        "A1",
+        "C++ Audio Guide",
+        "Jane Smith",
+        360,
+        "Audio Press",
+        2026,
+        Money::of(200),
+        "https://audio.example/cpp",
+        LicenseModel::AnnualSubscription,
+        Money::of(300));
+
+    CHECK(audiobook.category() == ResourceCategory::AudioBook);
+    CHECK(audiobook.isDigital());
+    CHECK(audiobook.narrator() == "Jane Smith");
+    CHECK(audiobook.durationMinutes() == 360);
+    CHECK(audiobook.costFor(4) == Money::of(1100));
+
+    const ElectronicResource& audioElectronic = audiobook;
+    CHECK(audioElectronic.costFor(4) == Money::of(1100));
+
+    CHECK_THROWS(
+        AudioBook(
+            "A2",
+            "Invalid Audio",
+            "Jane Smith",
+            0,
+            "Audio Press",
+            2026,
+            Money::of(200),
+            "https://audio.example/invalid"),
+        std::invalid_argument);
+
+    // Q3: Thesis
+    Thesis thesis(
+        "T1",
+        "Efficient Algorithms",
+        "ABC University",
+        "M.Tech",
+        "Dr. Rao",
+        2026);
+
+    CHECK(thesis.category() == ResourceCategory::Thesis);
+    CHECK(!thesis.isDigital());
+    CHECK(thesis.university() == "ABC University");
+    CHECK(thesis.degree() == "M.Tech");
+    CHECK(thesis.supervisor() == "Dr. Rao");
+    CHECK(thesis.costFor(1) == Money{});
+    CHECK(thesis.costFor(5) == Money{});
+
+    Resource& thesisResource = thesis;
+    CHECK(thesisResource.category() == ResourceCategory::Thesis);
+    CHECK(thesisResource.costFor(2) == Money{});
 }
 
 static void testAcquisition() {

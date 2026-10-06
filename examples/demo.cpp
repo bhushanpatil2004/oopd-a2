@@ -19,6 +19,10 @@ int main() {
     catalog.emplace<EBook>("E001","Modern C++",std::vector<std::string>{"Bjarne Stroustrup"},"978-0321563842",
                             "Tech Press",2026,Money::of(300),"https://ebooks.example/modern-cpp",LicenseModel::AnnualSubscription,
                             Money::of(500),FileFormat::EPUB, true);
+    catalog.emplace<AudioBook>( "A001", "C++ Audio Guide", "Jane Smith", 360, "Audio Press", 2026, Money::of(200),
+                                 "https://audio.example/cpp",LicenseModel::AnnualSubscription,Money::of(300));
+
+    catalog.emplace<Thesis>("T001","Efficient Algorithms", "ABC University", "M.Tech", "Dr. Rao", 2026);
     catalog.emplace<ElectronicResource>("R001", "IEEE Xplore Digital Library", "IEEE", 2026,
                                         Money::of(150), "https://ieeexplore.example",
                                         LicenseModel::AnnualSubscription, Money::of(2000));
@@ -35,6 +39,8 @@ int main() {
     budget.setQuota(ResourceCategory::Book, {10, Money::of(8000)});
     budget.setQuota(ResourceCategory::Journal, {6, Money::of(5000)});
     budget.setQuota(ResourceCategory::EBook,{5, Money::of(2500)});
+    budget.setQuota(ResourceCategory::AudioBook, {5, Money::of(2500)});
+    budget.setQuota(ResourceCategory::Thesis, {10, Money::of(1000)});
     budget.setQuota(ResourceCategory::ElectronicResource, {40, Money::of(12000)});
 
     AcquisitionManager acq(catalog, budget);
@@ -42,6 +48,8 @@ int main() {
     std::cout << "5 copies of B002  = " << acq.quote("B002", 5) << "\n";
     std::cout << "2 copies of J001 for 1 year = " << acq.quote("J001", 2) << "\n";
     std::cout << "5 seats of E001 = " << acq.quote("E001", 5)<< "  (EBook)\n";
+    std::cout << "3 seats of A001 = " << acq.quote("A001", 3) << "  (AudioBook)\n";
+    std::cout << "1 copy of T001 = " << acq.quote("T001", 1) << "  (Thesis, usually free)\n";
     std::cout << "20 seats of R001  = " << acq.quote("R001", 20) << "  (incl. platform fee)\n";
 
     acq.processBatch({
@@ -54,6 +62,8 @@ int main() {
         {"R002", 15},  // 6000  ok  -> e-resource spend 11000
         {"R002", 5},   // 2000  rejected: e-resource spend quota (1000 left)
         {"E001", 5},   // 1700  approved: separate EBook quota
+        {"A001", 3},   // 900   approved: AudioBook quota
+        {"T001", 1},   // 0     approved: Thesis is free
         {"X999", 1},   // rejected: unknown id
     });
     std::cout << "\n=== Acquisition report ===\n";
