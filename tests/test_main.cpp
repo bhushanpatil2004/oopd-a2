@@ -100,6 +100,37 @@ static void testResourcesAndCost() {
     // Pricing must remain inherited from ElectronicResource.
     CHECK(ebook.costFor(4) == Money::of(1700));
 
+        // Q4 — Hardcover books cost 20% more than listed price.
+    Book paperback(
+        "B-Q4-P",
+        "Q4 Paperback",
+        {"Author"},
+        "ISBN-Q4-P",
+        "Publisher",
+        2026,
+        Money::of(450),
+        1,
+        Binding::Paperback
+    );
+
+    Book hardcover(
+        "B-Q4-H",
+        "Q4 Hardcover",
+        {"Author"},
+        "ISBN-Q4-H",
+        "Publisher",
+        2026,
+        Money::of(450),
+        1,
+        Binding::Hardcover
+    );
+
+    CHECK(paperback.costFor(1) == Money::of(450));
+    CHECK(hardcover.costFor(1) == Money::of(540));
+
+    CHECK(paperback.costFor(2) == Money::of(900));
+    CHECK(hardcover.costFor(2) == Money::of(1080));
+
     ElectronicResource e("R1", "DB", "P", 2026, Money::of(10), "url",
                          LicenseModel::AnnualSubscription, Money::of(100));
     CHECK(e.isDigital());
