@@ -76,6 +76,30 @@ static void testResourcesAndCost() {
         j.costFor(0),
         std::invalid_argument);
 
+    EBook ebook(
+        "E001",
+        "Modern C++",
+        {"Bhushan Patil", "A. Developer"},
+        "978-1234567890",
+        "Tech Press",
+        2026,
+        Money::of(300),
+        "https://ebooks.example/modern-cpp",
+        LicenseModel::AnnualSubscription,
+        Money::of(500),
+        FileFormat::EPUB,
+        true);
+
+    CHECK(ebook.category() == ResourceCategory::EBook);
+    CHECK(ebook.isDigital());
+    CHECK(ebook.isbn() == "978-1234567890");
+    CHECK(ebook.format() == FileFormat::EPUB);
+    CHECK(ebook.drmProtected());
+    CHECK(ebook.authors().size() == 2);
+
+    // Pricing must remain inherited from ElectronicResource.
+    CHECK(ebook.costFor(4) == Money::of(1700));
+
     ElectronicResource e("R1", "DB", "P", 2026, Money::of(10), "url",
                          LicenseModel::AnnualSubscription, Money::of(100));
     CHECK(e.isDigital());
@@ -87,6 +111,10 @@ static void testResourcesAndCost() {
     const Resource& journalResource = j;
     CHECK(journalResource.category() == ResourceCategory::Journal);
     CHECK(journalResource.costFor(2) == Money::of(3000));
+
+    const ElectronicResource& electronic = ebook;
+    CHECK(electronic.costFor(4) == Money::of(1700));
+    CHECK(electronic.category() == ResourceCategory::EBook);
     const Resource& r = e;
     CHECK(r.costFor(1) == Money::of(110));
     std::ostringstream os;
@@ -157,6 +185,27 @@ static void testBudget() {
     CHECK_THROWS(b.commit(ResourceCategory::ElectronicResource, 0, Money::of(1)),
                  std::invalid_argument);
     CHECK(b.spent() == Money::of(300));  // failed commits changed nothing
+
+    Budget ebookBudget(Money::of(25000));
+
+    ebookBudget.setQuota(
+        ResourceCategory::EBook,
+        {5, Money::of(2500)});
+
+    CHECK(ebookBudget.check(
+        ResourceCategory::EBook,
+        3,
+        Money::of(1700)).empty());
+
+    CHECK(!ebookBudget.check(
+        ResourceCategory::EBook,
+        6,
+        Money::of(1700)).empty());
+
+    CHECK(!ebookBudget.check(
+        ResourceCategory::EBook,
+        2,
+        Money::of(2600)).empty());
 }
 
 static void testAcquisition() {

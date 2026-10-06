@@ -16,6 +16,9 @@ int main() {
                           std::vector<std::string>{"Bjarne Stroustrup"}, "978-0321563842",
                           "Addison-Wesley", 2013, Money::of(1200), 4, Binding::Hardcover);
     catalog.emplace<Journal>("J001","ACM Computing Surveys","0360-0300",4,"ACM",2026,Money::of(100),1);
+    catalog.emplace<EBook>("E001","Modern C++",std::vector<std::string>{"Bjarne Stroustrup"},"978-0321563842",
+                            "Tech Press",2026,Money::of(300),"https://ebooks.example/modern-cpp",LicenseModel::AnnualSubscription,
+                            Money::of(500),FileFormat::EPUB, true);
     catalog.emplace<ElectronicResource>("R001", "IEEE Xplore Digital Library", "IEEE", 2026,
                                         Money::of(150), "https://ieeexplore.example",
                                         LicenseModel::AnnualSubscription, Money::of(2000));
@@ -28,16 +31,17 @@ int main() {
 
     std::cout << "\n=== Details of R001 ===\n" << catalog.get("R001");
 
-    Budget budget(Money::of(20000));
+    Budget budget(Money::of(25000));
     budget.setQuota(ResourceCategory::Book, {10, Money::of(8000)});
     budget.setQuota(ResourceCategory::Journal, {6, Money::of(5000)});
+    budget.setQuota(ResourceCategory::EBook,{5, Money::of(2500)});
     budget.setQuota(ResourceCategory::ElectronicResource, {40, Money::of(12000)});
 
     AcquisitionManager acq(catalog, budget);
-
     std::cout << "\n=== Quotes ===\n";
     std::cout << "5 copies of B002  = " << acq.quote("B002", 5) << "\n";
     std::cout << "2 copies of J001 for 1 year = " << acq.quote("J001", 2) << "\n";
+    std::cout << "5 seats of E001 = " << acq.quote("E001", 5)<< "  (EBook)\n";
     std::cout << "20 seats of R001  = " << acq.quote("R001", 20) << "  (incl. platform fee)\n";
 
     acq.processBatch({
@@ -49,6 +53,7 @@ int main() {
         {"R002", 25},  // 10000 rejected: e-resource unit quota (20 seats left)
         {"R002", 15},  // 6000  ok  -> e-resource spend 11000
         {"R002", 5},   // 2000  rejected: e-resource spend quota (1000 left)
+        {"E001", 5},   // 1700  approved: separate EBook quota
         {"X999", 1},   // rejected: unknown id
     });
     std::cout << "\n=== Acquisition report ===\n";

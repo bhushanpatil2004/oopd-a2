@@ -18,7 +18,8 @@ namespace bookmgmt {
 enum class ResourceCategory {
     Book,
     Journal,
-    ElectronicResource
+    ElectronicResource,
+    EBook
 };
 
 const char* categoryName(ResourceCategory c);

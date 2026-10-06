@@ -13,7 +13,8 @@ namespace {
 const ResourceCategory kAllCategories[] = {
     ResourceCategory::Book,
     ResourceCategory::Journal,
-    ResourceCategory::ElectronicResource
+    ResourceCategory::ElectronicResource,
+    ResourceCategory::EBook
 };
 } //namespace
 
