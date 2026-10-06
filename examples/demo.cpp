@@ -15,6 +15,7 @@ int main() {
     catalog.emplace<Book>("B002", "The C++ Programming Language",
                           std::vector<std::string>{"Bjarne Stroustrup"}, "978-0321563842",
                           "Addison-Wesley", 2013, Money::of(1200), 4, Binding::Hardcover);
+    catalog.emplace<Journal>("J001","ACM Computing Surveys","0360-0300",4,"ACM",2026,Money::of(100),1);
     catalog.emplace<ElectronicResource>("R001", "IEEE Xplore Digital Library", "IEEE", 2026,
                                         Money::of(150), "https://ieeexplore.example",
                                         LicenseModel::AnnualSubscription, Money::of(2000));
@@ -29,25 +30,27 @@ int main() {
 
     Budget budget(Money::of(20000));
     budget.setQuota(ResourceCategory::Book, {10, Money::of(8000)});
+    budget.setQuota(ResourceCategory::Journal, {6, Money::of(5000)});
     budget.setQuota(ResourceCategory::ElectronicResource, {40, Money::of(12000)});
 
     AcquisitionManager acq(catalog, budget);
 
     std::cout << "\n=== Quotes ===\n";
     std::cout << "5 copies of B002  = " << acq.quote("B002", 5) << "\n";
+    std::cout << "2 copies of J001 for 1 year = " << acq.quote("J001", 2) << "\n";
     std::cout << "20 seats of R001  = " << acq.quote("R001", 20) << "  (incl. platform fee)\n";
 
     acq.processBatch({
         {"B001", 4},   // 1800  ok
         {"B002", 5},   // 6000  ok  -> book spend 7800
         {"B001", 1},   // 450   rejected: book spend quota (200 left)
+        {"J001", 6},   // 600   ok  -> journal quota becomes 6/6
         {"R001", 20},  // 5000  ok
         {"R002", 25},  // 10000 rejected: e-resource unit quota (20 seats left)
         {"R002", 15},  // 6000  ok  -> e-resource spend 11000
         {"R002", 5},   // 2000  rejected: e-resource spend quota (1000 left)
         {"X999", 1},   // rejected: unknown id
     });
-
     std::cout << "\n=== Acquisition report ===\n";
     acq.printReport(std::cout);
 

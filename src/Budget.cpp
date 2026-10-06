@@ -10,9 +10,12 @@ namespace bookmgmt {
 
 namespace {
 // Every category, in the order Budget::print() lists them.
-const ResourceCategory kAllCategories[] = {ResourceCategory::Book,
-                                           ResourceCategory::ElectronicResource};
-}
+const ResourceCategory kAllCategories[] = {
+    ResourceCategory::Book,
+    ResourceCategory::Journal,
+    ResourceCategory::ElectronicResource
+};
+} //namespace
 
 Budget::Budget(Money total) : total_(total) {
     if (total_.isNegative()) throw std::invalid_argument("budget must not be negative");
