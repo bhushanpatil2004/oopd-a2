@@ -51,6 +51,9 @@ int main() {
     std::cout << "3 seats of A001 = " << acq.quote("A001", 3) << "  (AudioBook)\n";
     std::cout << "1 copy of T001 = " << acq.quote("T001", 1) << "  (Thesis, usually free)\n";
     std::cout << "20 seats of R001  = " << acq.quote("R001", 20) << "  (incl. platform fee)\n";
+    std::cout << "Q5 bulk discount quotes:\n";
+    std::cout << "  10 copies of B002 (hardcover + bulk discount): "<< acq.quote("B002", 10) << "\n";
+    std::cout << "  60 seats of R001 (first 50 full price, remaining half price): "<< acq.quote("R001", 60) << "\n";
 
     acq.processBatch({
         {"B001", 4},   // 1800  ok

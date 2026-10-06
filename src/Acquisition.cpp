@@ -11,10 +11,21 @@ namespace bookmgmt {
 AcquisitionManager::AcquisitionManager(Catalog& catalog, Budget& budget)
     : catalog_(catalog), budget_(budget) {}
 
-Money AcquisitionManager::quote(const std::string& id, int quantity) const {
-    return catalog_.get(id).costFor(quantity);
-}
+Money AcquisitionManager::purchaseCost(const Resource* r, int quantity) const {
+    Money cost = r->costFor(quantity);
 
+    if (quantity >= 10 &&
+        (r->category() == ResourceCategory::Book ||
+         r->category() == ResourceCategory::Journal ||
+         r->category() == ResourceCategory::Thesis)) {
+        return Money::fromMinor((cost.minorUnits() * 90) / 100);
+    }
+
+    return cost;
+}
+Money AcquisitionManager::quote(const std::string& id, int quantity) const {
+    return purchaseCost(&catalog_.get(id), quantity);
+}
 bool AcquisitionManager::canPurchase(const std::string& id, int quantity,
                                      std::string* reason) const {
     std::string why;
@@ -22,7 +33,7 @@ bool AcquisitionManager::canPurchase(const std::string& id, int quantity,
         if (quantity <= 0)
             why = "quantity must be positive";
         else
-            why = budget_.check(r->category(), quantity, r->costFor(quantity));
+            why = budget_.check(r->category(), quantity, purchaseCost(r, quantity));
     } else {
         why = "resource not found: " + id;
     }
@@ -42,7 +53,7 @@ PurchaseRecord& AcquisitionManager::record(const Resource* r, const std::string&
 
 const PurchaseRecord& AcquisitionManager::purchase(const std::string& id, int quantity) {
     const Resource& r = catalog_.get(id);        // may throw NotFoundError
-    const Money cost = r.costFor(quantity);      // may throw invalid_argument
+    const Money cost = purchaseCost(&r, quantity);     // may throw invalid_argument
     budget_.commit(r.category(), quantity, cost);  // may throw quota/budget errors
     catalog_.addHoldings(id, quantity);
     return record(&r, id, quantity, cost, true, {});
@@ -61,7 +72,7 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
         } else if (req.quantity <= 0) {
             why = "quantity must be positive";
         } else {
-            cost = r->costFor(req.quantity);
+            cost = purchaseCost(r, req.quantity);
             why = budget_.check(r->category(), req.quantity, cost);
         }
 

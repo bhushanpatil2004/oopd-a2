@@ -131,6 +131,70 @@ static void testResourcesAndCost() {
     CHECK(paperback.costFor(2) == Money::of(900));
     CHECK(hardcover.costFor(2) == Money::of(1080));
 
+    // Q5 — Bulk discounts for print items
+    Book q5Paperback(
+        "B-Q5-P",
+        "Q5 Paperback",
+        {"Author"},
+        "ISBN-Q5-P",
+        "Publisher",
+        2026,
+        Money::of(100),
+        1,
+        Binding::Paperback
+    );
+
+    Book q5Hardcover(
+        "B-Q5-H",
+        "Q5 Hardcover",
+        {"Author"},
+        "ISBN-Q5-H",
+        "Publisher",
+        2026,
+        Money::of(100),
+        1,
+        Binding::Hardcover
+    );
+
+    CHECK(q5Paperback.costFor(9) == Money::of(900));
+    CHECK(q5Paperback.costFor(10) == Money::of(1000));
+
+    CHECK(q5Hardcover.costFor(9) == Money::of(1080));
+    CHECK(q5Hardcover.costFor(10) == Money::of(1200));
+
+
+    // Q5 — Bulk discount for Journal
+    Journal q5Journal(
+        "J-Q5",
+        "Q5 Journal",
+        "Publisher",
+        2026,
+        "ISSN-Q5",
+        12,
+        Money::of(100),
+        1
+    );
+
+    CHECK(q5Journal.costFor(9) == Money::of(900));
+    CHECK(q5Journal.costFor(10) == Money::of(1000));
+
+
+    // Q5 — Electronic resource: 50-seat boundary
+    ElectronicResource q5Electronic(
+        "ER-Q5",
+        "Q5 Electronic Resource",
+        "Publisher",
+        2026,
+        Money::of(100),
+        "https://example.com/q5",
+        LicenseModel::AnnualSubscription,
+        Money::of(500)
+    );
+
+    CHECK(q5Electronic.costFor(50) == Money::of(5500));
+    CHECK(q5Electronic.costFor(51) == Money::of(5550));
+    CHECK(q5Electronic.costFor(60) == Money::of(6000));
+
     ElectronicResource e("R1", "DB", "P", 2026, Money::of(10), "url",
                          LicenseModel::AnnualSubscription, Money::of(100));
     CHECK(e.isDigital());

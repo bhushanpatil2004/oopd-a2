@@ -54,6 +54,7 @@ public:
     void printReport(std::ostream& os) const;
 
 private:
+    Money purchaseCost(const Resource* r, int quantity) const;
     PurchaseRecord& record(const Resource* r, const std::string& id, int qty,
                            Money cost, bool approved, std::string reason);
 
