@@ -2,7 +2,7 @@
 
 ## Questions Attempted
 
-I attempted all questions from Q1 to Q6.
+I attempted all questions from Q1 to Q7.
 
 ---
 
@@ -11,13 +11,16 @@ I attempted all questions from Q1 to Q6.
 Added a `Journal` resource to the existing resource hierarchy.
 
 ### Design
+
 - `Journal` derives from `Resource`.
 - It stores the number of issues published per year and the subscription duration.
 - Journal cost is calculated using the unit price, number of copies, and subscription years.
 - Invalid subscription years and issue counts are rejected.
 
 ### Testing
+
 Tests were added for:
+
 - Journal category
 - Journal pricing
 - Subscription duration
@@ -33,6 +36,7 @@ Tests were added for:
 Added an `EBook` resource for electronic books.
 
 ### Design
+
 - `EBook` derives from `ElectronicResource`.
 - It stores authors, ISBN, file format, and DRM information.
 - The existing electronic-resource pricing mechanism is reused.
@@ -40,7 +44,9 @@ Added an `EBook` resource for electronic books.
 A separate bibliographic-information class could have been used with composition, but inheritance was kept here because an EBook is an electronic resource and needs its access/licensing behaviour.
 
 ### Testing
+
 Tests cover:
+
 - EBook category
 - Digital-resource behaviour
 - ISBN
@@ -58,17 +64,22 @@ Tests cover:
 Added `AudioBook` and `Thesis` resources.
 
 ### Design
+
 - `AudioBook` derives from `ElectronicResource` because it requires electronic access and licensing behaviour.
 - `Thesis` derives directly from `Resource` because it is a catalogue item and is normally free rather than being an electronically licensed resource.
 
 ### AudioBook
+
 Stores:
+
 - Narrator
 - Duration in minutes
 - Electronic access information
 
 ### Thesis
+
 Stores:
+
 - University
 - Degree
 - Supervisor
@@ -76,7 +87,9 @@ Stores:
 Thesis cost is zero because theses are normally free in this assignment model.
 
 ### Testing
+
 Tests were added for:
+
 - AudioBook category and properties
 - AudioBook pricing
 - Thesis category and properties
@@ -127,6 +140,7 @@ This rule is implemented in `ElectronicResource::costFor()`.
 ### Testing
 
 Tests cover:
+
 - Print purchases below 10 copies
 - Print purchases at 10 copies
 - Electronic purchases at 50 seats
@@ -153,6 +167,7 @@ The acquisition process then performs the following sequence:
 6. Commit the post-tax cost when the purchase is approved.
 
 Two configurable rates are supported:
+
 - Print tax rate
 - Electronic tax rate
 
@@ -161,11 +176,13 @@ Tax rates are represented as whole percentages from 0 to 100.
 ### Reporting
 
 The acquisition report shows:
+
 - Pre-tax cost
 - Tax
 - Post-tax cost
 
 It also reports:
+
 - Pre-tax total
 - Tax total
 - Post-tax total
@@ -174,6 +191,7 @@ It also reports:
 ### Testing
 
 Tests verify:
+
 - Print tax calculation
 - Electronic tax calculation
 - Configurable tax rates
@@ -185,12 +203,17 @@ A specific test verifies that a purchase can be rejected when its pre-tax cost i
 
 ---
 
-## Overall Design Decisions
+## Q7 — Different-Title Limits
 
-The implementation keeps resource-specific pricing inside the resource classes where appropriate, while purchase-dependent rules are handled by `AcquisitionManager`.
+A limit was added on the number of different titles that may be purchased in each category.
 
-Money calculations use integer minor currency units rather than floating-point arithmetic.
+### Design
 
-Existing functionality from earlier questions was preserved while adding each new requirement.
+The title limit is maintained by `Budget`.
 
-All existing tests continue to pass after the Q6 changes.
+Each category can have an optional maximum number of different titles.
+
+For example:
+
+```text
+Book title limit = 2

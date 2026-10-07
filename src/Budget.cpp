@@ -18,7 +18,7 @@ const ResourceCategory kAllCategories[] = {
     ResourceCategory::AudioBook,
     ResourceCategory::Thesis
 };
-} //namespace
+} // namespace
 
 Budget::Budget(Money total) : total_(total) {
     if (total_.isNegative()) throw std::invalid_argument("budget must not be negative");
@@ -98,25 +98,117 @@ void Budget::commit(ResourceCategory c, int units, Money cost) {
         case Failure::Quota: throw QuotaExceededError(why);
         case Failure::Overall: throw BudgetExceededError(why);
     }
+
     Usage& u = usage_[c];
     u.units += units;
     u.spent += cost;
     spent_ += cost;
 }
 
+/*
+ * Q7: Limit the number of different titles that may be bought
+ * in each category.
+ */
+void Budget::setTitleLimit(ResourceCategory c, int maxTitles) {
+    if (maxTitles < 0)
+        throw std::invalid_argument("title limit must not be negative");
+
+    titleLimits_[c] = maxTitles;
+}
+
+std::optional<int> Budget::titleLimitFor(ResourceCategory c) const {
+    auto it = titleLimits_.find(c);
+
+    if (it == titleLimits_.end())
+        return std::nullopt;
+
+    return it->second;
+}
+
+int Budget::titlesUsed(ResourceCategory c) const {
+    auto it = purchasedTitles_.find(c);
+
+    if (it == purchasedTitles_.end())
+        return 0;
+
+    return static_cast<int>(it->second.size());
+}
+
+std::string Budget::checkTitle(ResourceCategory c,
+                               const std::string& resourceId) const {
+    if (resourceId.empty())
+        return "resource id must not be empty";
+
+    auto titlesIt = purchasedTitles_.find(c);
+
+    // Buying more copies/seats of an already purchased title
+    // does not consume another title slot.
+    if (titlesIt != purchasedTitles_.end() &&
+        titlesIt->second.find(resourceId) != titlesIt->second.end()) {
+        return {};
+    }
+
+    auto limitIt = titleLimits_.find(c);
+
+    // No title limit configured for this category.
+    if (limitIt == titleLimits_.end())
+        return {};
+
+    if (titlesUsed(c) >= limitIt->second) {
+        return std::string(categoryName(c)) +
+               " different-title limit exceeded";
+    }
+
+    return {};
+}
+
+void Budget::commitTitle(ResourceCategory c,
+                         const std::string& resourceId) {
+    if (resourceId.empty())
+        throw std::invalid_argument("resource id must not be empty");
+
+    auto& titles = purchasedTitles_[c];
+
+    // The same title can be bought again without increasing
+    // the number of different titles.
+    if (titles.find(resourceId) != titles.end())
+        return;
+
+    auto limitIt = titleLimits_.find(c);
+
+    if (limitIt != titleLimits_.end() &&
+        static_cast<int>(titles.size()) >= limitIt->second) {
+        throw QuotaExceededError(
+            std::string(categoryName(c)) +
+            " different-title limit exceeded");
+    }
+
+    titles.insert(resourceId);
+}
+
 void Budget::print(std::ostream& os) const {
     os << "Budget: total " << total_ << ", spent " << spent_ << ", remaining "
        << remaining() << "\n";
-    os << std::left << std::setw(22) << "  Category" << std::setw(18) << "Units used/max"
+
+    os << std::left << std::setw(22) << "  Category"
+       << std::setw(18) << "Units used/max"
        << "Spend used/max\n";
+
     for (ResourceCategory c : kAllCategories) {
         const Usage u = usageFor(c);
         const auto q = quotaFor(c);
+
         const std::string units =
-            std::to_string(u.units) + "/" + (q ? std::to_string(q->maxUnits) : "-");
+            std::to_string(u.units) + "/" +
+            (q ? std::to_string(q->maxUnits) : "-");
+
         const std::string spend =
-            u.spent.toString() + "/" + (q ? q->maxSpend.toString() : "-");
-        os << "  " << std::setw(20) << categoryName(c) << std::setw(18) << units << spend
+            u.spent.toString() + "/" +
+            (q ? q->maxSpend.toString() : "-");
+
+        os << "  " << std::setw(20) << categoryName(c)
+           << std::setw(18) << units
+           << spend
            << "\n";
     }
 }

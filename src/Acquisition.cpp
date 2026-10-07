@@ -9,7 +9,8 @@
 
 namespace bookmgmt {
 
-AcquisitionManager::AcquisitionManager(Catalog& catalog, Budget& budget,
+AcquisitionManager::AcquisitionManager(Catalog& catalog,
+                                       Budget& budget,
                                        int printTaxPercent,
                                        int electronicTaxPercent)
     : catalog_(catalog),
@@ -23,14 +24,16 @@ void AcquisitionManager::setTaxRates(int printTaxPercent,
                                       int electronicTaxPercent) {
     if (printTaxPercent < 0 || printTaxPercent > 100 ||
         electronicTaxPercent < 0 || electronicTaxPercent > 100) {
-        throw std::invalid_argument("tax rates must be between 0 and 100");
+        throw std::invalid_argument(
+            "tax rates must be between 0 and 100");
     }
 
     printTaxPercent_ = printTaxPercent;
     electronicTaxPercent_ = electronicTaxPercent;
 }
 
-Money AcquisitionManager::purchaseCost(const Resource* r, int quantity) const {
+Money AcquisitionManager::purchaseCost(const Resource* r,
+                                        int quantity) const {
     Money cost = r->costFor(quantity);
 
     if (quantity >= 10 &&
@@ -43,7 +46,8 @@ Money AcquisitionManager::purchaseCost(const Resource* r, int quantity) const {
     return cost;
 }
 
-Money AcquisitionManager::taxFor(const Resource* r, Money preTaxCost) const {
+Money AcquisitionManager::taxFor(const Resource* r,
+                                  Money preTaxCost) const {
     if (!r) {
         return Money{};
     }
@@ -68,30 +72,42 @@ Money AcquisitionManager::taxFor(const Resource* r, Money preTaxCost) const {
         (preTaxCost.minorUnits() * rate) / 100);
 }
 
-Money AcquisitionManager::quote(const std::string& id, int quantity) const {
-    const Resource* r = &catalog_.get(id);
-    const Money preTaxCost = purchaseCost(r, quantity);
-    return preTaxCost + taxFor(r, preTaxCost);
+Money AcquisitionManager::quote(const std::string& id,
+                                 int quantity) const {
+    const Resource& r = catalog_.get(id);
+
+    const Money preTaxCost = purchaseCost(&r, quantity);
+    return preTaxCost + taxFor(&r, preTaxCost);
 }
 
-bool AcquisitionManager::canPurchase(const std::string& id, int quantity,
-                                      std::string* reason) const {
+bool AcquisitionManager::canPurchase(const std::string& id,
+                                     int quantity,
+                                     std::string* reason) const {
     std::string why;
 
-    if (const Resource* r = catalog_.find(id)) {
-        if (quantity <= 0) {
-            why = "quantity must be positive";
-        } else {
-            const Money preTaxCost = purchaseCost(r, quantity);
-            const Money postTaxCost = preTaxCost + taxFor(r, preTaxCost);
+    const Resource* r = catalog_.find(id);
+
+    if (!r) {
+        why = "resource not found: " + id;
+    } else if (quantity <= 0) {
+        why = "quantity must be positive";
+    } else {
+        // Q7: check whether this purchase would introduce a new title
+        // beyond the configured category title limit.
+        why = budget_.checkTitle(r->category(), r->id());
+
+        if (why.empty()) {
+            const Money preTaxCost =
+                purchaseCost(r, quantity);
+
+            const Money postTaxCost =
+                preTaxCost + taxFor(r, preTaxCost);
 
             why = budget_.check(
                 r->category(),
                 quantity,
                 postTaxCost);
         }
-    } else {
-        why = "resource not found: " + id;
     }
 
     if (reason) {
@@ -124,20 +140,38 @@ PurchaseRecord& AcquisitionManager::record(const Resource* r,
     return history_.back();
 }
 
-const PurchaseRecord& AcquisitionManager::purchase(const std::string& id,
-                                                   int quantity) {
+const PurchaseRecord& AcquisitionManager::purchase(
+    const std::string& id,
+    int quantity) {
     const Resource& r = catalog_.get(id);
 
     if (quantity <= 0) {
-        throw std::invalid_argument("quantity must be positive");
+        throw std::invalid_argument(
+            "quantity must be positive");
     }
 
-    const Money preTaxCost = purchaseCost(&r, quantity);
-    const Money tax = taxFor(&r, preTaxCost);
-    const Money postTaxCost = preTaxCost + tax;
+    // Q7: title limit is checked before normal budget quotas.
+    const std::string titleReason =
+        budget_.checkTitle(r.category(), r.id());
+
+    if (!titleReason.empty()) {
+        throw QuotaExceededError(titleReason);
+    }
+
+    const Money preTaxCost =
+        purchaseCost(&r, quantity);
+
+    const Money tax =
+        taxFor(&r, preTaxCost);
+
+    const Money postTaxCost =
+        preTaxCost + tax;
 
     const std::string reason =
-        budget_.check(r.category(), quantity, postTaxCost);
+        budget_.check(
+            r.category(),
+            quantity,
+            postTaxCost);
 
     if (!reason.empty()) {
         if (reason.find("quota") != std::string::npos) {
@@ -147,17 +181,29 @@ const PurchaseRecord& AcquisitionManager::purchase(const std::string& id,
         throw BudgetExceededError(reason);
     }
 
-    budget_.commit(r.category(), quantity, postTaxCost);
-    catalog_.addHoldings(id, quantity);
+    budget_.commit(
+        r.category(),
+        quantity,
+        postTaxCost);
 
-    return record(&r,
-                  id,
-                  quantity,
-                  preTaxCost,
-                  tax,
-                  postTaxCost,
-                  true,
-                  {});
+    // Q7: record the title only after the complete purchase succeeds.
+    budget_.commitTitle(
+        r.category(),
+        r.id());
+
+    catalog_.addHoldings(
+        id,
+        quantity);
+
+    return record(
+        &r,
+        id,
+        quantity,
+        preTaxCost,
+        tax,
+        postTaxCost,
+        true,
+        {});
 }
 
 std::vector<PurchaseRecord> AcquisitionManager::processBatch(
@@ -166,7 +212,8 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
     results.reserve(reqs.size());
 
     for (const auto& req : reqs) {
-        const Resource* r = catalog_.find(req.resourceId);
+        const Resource* r =
+            catalog_.find(req.resourceId);
 
         Money preTaxCost;
         Money tax;
@@ -178,14 +225,26 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
         } else if (req.quantity <= 0) {
             why = "quantity must be positive";
         } else {
-            preTaxCost = purchaseCost(r, req.quantity);
-            tax = taxFor(r, preTaxCost);
-            postTaxCost = preTaxCost + tax;
-
-            why = budget_.check(
+            // Q7: title limit is checked before spending quotas.
+            why = budget_.checkTitle(
                 r->category(),
-                req.quantity,
-                postTaxCost);
+                r->id());
+
+            if (why.empty()) {
+                preTaxCost =
+                    purchaseCost(r, req.quantity);
+
+                tax =
+                    taxFor(r, preTaxCost);
+
+                postTaxCost =
+                    preTaxCost + tax;
+
+                why = budget_.check(
+                    r->category(),
+                    req.quantity,
+                    postTaxCost);
+            }
         }
 
         if (why.empty()) {
@@ -194,29 +253,36 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
                 req.quantity,
                 postTaxCost);
 
+            // Record the title only for an approved purchase.
+            budget_.commitTitle(
+                r->category(),
+                r->id());
+
             catalog_.addHoldings(
                 req.resourceId,
                 req.quantity);
 
             results.push_back(
-                record(r,
-                       req.resourceId,
-                       req.quantity,
-                       preTaxCost,
-                       tax,
-                       postTaxCost,
-                       true,
-                       {}));
+                record(
+                    r,
+                    req.resourceId,
+                    req.quantity,
+                    preTaxCost,
+                    tax,
+                    postTaxCost,
+                    true,
+                    {}));
         } else {
             results.push_back(
-                record(r,
-                       req.resourceId,
-                       req.quantity,
-                       preTaxCost,
-                       tax,
-                       postTaxCost,
-                       false,
-                       why));
+                record(
+                    r,
+                    req.resourceId,
+                    req.quantity,
+                    preTaxCost,
+                    tax,
+                    postTaxCost,
+                    false,
+                    why));
         }
     }
 
@@ -240,10 +306,12 @@ void AcquisitionManager::printReport(std::ostream& os) const {
     Money totalTax;
     Money totalPostTax;
 
-    os << "Order history (" << history_.size() << " orders)\n";
+    os << "Order history (" << history_.size()
+       << " orders)\n";
 
     for (const auto& rec : history_) {
-        os << "  #" << std::setw(3) << std::left << rec.orderNo
+        os << "  #" << std::setw(3) << std::left
+           << rec.orderNo
            << " "
            << (rec.approved ? "APPROVED" : "REJECTED")
            << "  "
@@ -264,7 +332,8 @@ void AcquisitionManager::printReport(std::ostream& os) const {
            << rec.title;
 
         if (!rec.approved) {
-            os << "\n        reason: " << rec.reason;
+            os << "\n        reason: "
+               << rec.reason;
         }
 
         os << "\n";
@@ -276,10 +345,17 @@ void AcquisitionManager::printReport(std::ostream& os) const {
         }
     }
 
-    os << "Pre-tax total: " << totalPreTax << "\n";
-    os << "Tax total: " << totalTax << "\n";
-    os << "Post-tax total: " << totalPostTax << "\n";
-    os << "Total spent: " << totalSpent() << "\n";
+    os << "Pre-tax total: "
+       << totalPreTax << "\n";
+
+    os << "Tax total: "
+       << totalTax << "\n";
+
+    os << "Post-tax total: "
+       << totalPostTax << "\n";
+
+    os << "Total spent: "
+       << totalSpent() << "\n";
 }
 
 }  // namespace bookmgmt

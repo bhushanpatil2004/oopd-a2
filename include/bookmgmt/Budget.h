@@ -7,6 +7,7 @@
 #include <iosfwd>
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
 
 #include "bookmgmt/Money.h"
@@ -16,7 +17,7 @@ namespace bookmgmt {
 
 struct Quota {
     int maxUnits;    // maximum copies/seats that may be bought
-    Money maxSpend;  // maximum money that may be spent
+    Money maxSpend;  // maximum money that may be spent on one category
 };
 
 struct Usage {
@@ -49,6 +50,27 @@ public:
     // (and changes nothing) if it would not fit.
     void commit(ResourceCategory c, int units, Money cost);
 
+    // Q7: limits the number of different titles that may be bought
+    // in a category.
+    void setTitleLimit(ResourceCategory c, int maxTitles);
+
+    // Returns the configured title limit. nullopt means no title limit.
+    std::optional<int> titleLimitFor(ResourceCategory c) const;
+
+    // Returns the number of different titles already purchased
+    // in a category.
+    int titlesUsed(ResourceCategory c) const;
+
+    // Returns an empty string if the title can be purchased, otherwise
+    // returns the title-limit failure reason. Does not change state.
+    std::string checkTitle(ResourceCategory c,
+                           const std::string& resourceId) const;
+
+    // Records a newly purchased title.
+    // Does nothing if the title has already been recorded.
+    void commitTitle(ResourceCategory c,
+                     const std::string& resourceId);
+
     void print(std::ostream& os) const;
 
 private:
@@ -59,6 +81,12 @@ private:
     Money spent_;
     std::map<ResourceCategory, Quota> quotas_;
     std::map<ResourceCategory, Usage> usage_;
+
+    // Q7: maximum number of different titles allowed in each category.
+    std::map<ResourceCategory, int> titleLimits_;
+
+    // Q7: resource IDs of titles already purchased in each category.
+    std::map<ResourceCategory, std::set<std::string>> purchasedTitles_;
 };
 
 }  // namespace bookmgmt

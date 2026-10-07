@@ -1,6 +1,7 @@
 #pragma once
 // AcquisitionManager: turns purchase requests into orders, enforcing the
-// Budget's quotas, updating Catalog holdings and keeping an order history.
+// Budget's quotas, title limits, updating Catalog holdings and keeping an
+// order history.
 
 #include <iosfwd>
 #include <string>
@@ -32,8 +33,8 @@ struct PurchaseRecord {
 class AcquisitionManager {
 public:
     AcquisitionManager(Catalog& catalog, Budget& budget,
-                   int printTaxPercent = 0,
-                   int electronicTaxPercent = 0);
+                       int printTaxPercent = 0,
+                       int electronicTaxPercent = 0);
 
     void setTaxRates(int printTaxPercent, int electronicTaxPercent);
 
@@ -55,7 +56,8 @@ public:
     // Processes requests in order; each is approved or rejected on its own
     // (never throws for a rejected request). Every outcome is recorded.
     // EXTENSION POINT: priority ordering, all-or-nothing batches, ...
-    std::vector<PurchaseRecord> processBatch(const std::vector<PurchaseRequest>& reqs);
+    std::vector<PurchaseRecord> processBatch(
+        const std::vector<PurchaseRequest>& reqs);
 
     const std::vector<PurchaseRecord>& history() const { return history_; }
     Money totalSpent() const;
@@ -65,9 +67,15 @@ public:
 private:
     Money purchaseCost(const Resource* r, int quantity) const;
     Money taxFor(const Resource* r, Money preTaxCost) const;
-    PurchaseRecord& record(const Resource* r, const std::string& id, int qty,
-                       Money preTaxCost, Money tax, Money cost,
-                       bool approved, std::string reason);
+
+    PurchaseRecord& record(const Resource* r,
+                           const std::string& id,
+                           int qty,
+                           Money preTaxCost,
+                           Money tax,
+                           Money cost,
+                           bool approved,
+                           std::string reason);
 
     Catalog& catalog_;
     Budget& budget_;

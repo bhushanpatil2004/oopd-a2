@@ -501,6 +501,285 @@ static void testPostTaxQuota() {
     // Budget must remain unchanged after the rejected check.
     CHECK(b.spent() == Money{});
 }
+
+static void testTitleLimits() {
+    Catalog c;
+
+    c.emplace<Book>(
+        "Q7-B1",
+        "First Book",
+        std::vector<std::string>{"Author One"},
+        "ISBN-Q7-1",
+        "Publisher",
+        2026,
+        Money::of(100));
+
+    c.emplace<Book>(
+        "Q7-B2",
+        "Second Book",
+        std::vector<std::string>{"Author Two"},
+        "ISBN-Q7-2",
+        "Publisher",
+        2026,
+        Money::of(100));
+
+    c.emplace<Book>(
+        "Q7-B3",
+        "Third Book",
+        std::vector<std::string>{"Author Three"},
+        "ISBN-Q7-3",
+        "Publisher",
+        2026,
+        Money::of(100));
+
+    c.emplace<Journal>(
+        "Q7-J1",
+        "First Journal",
+        "ISSN-Q7-1",
+        12,
+        "Publisher",
+        2026,
+        Money::of(50),
+        1);
+
+    Budget b(Money::of(5000));
+
+    // Q7: at most two different Book titles.
+    b.setTitleLimit(ResourceCategory::Book, 2);
+
+    CHECK(b.titleLimitFor(ResourceCategory::Book).has_value());
+    CHECK(*b.titleLimitFor(ResourceCategory::Book) == 2);
+
+    CHECK(b.titlesUsed(ResourceCategory::Book) == 0);
+
+    // First title is allowed.
+    CHECK(
+        b.checkTitle(
+            ResourceCategory::Book,
+            "Q7-B1").empty());
+
+    b.commitTitle(
+        ResourceCategory::Book,
+        "Q7-B1");
+
+    CHECK(
+        b.titlesUsed(ResourceCategory::Book) == 1);
+
+    // Buying the same title again must not consume another title slot.
+    CHECK(
+        b.checkTitle(
+            ResourceCategory::Book,
+            "Q7-B1").empty());
+
+    b.commitTitle(
+        ResourceCategory::Book,
+        "Q7-B1");
+
+    CHECK(
+        b.titlesUsed(ResourceCategory::Book) == 1);
+
+    // Second different title is allowed.
+    CHECK(
+        b.checkTitle(
+            ResourceCategory::Book,
+            "Q7-B2").empty());
+
+    b.commitTitle(
+        ResourceCategory::Book,
+        "Q7-B2");
+
+    CHECK(
+        b.titlesUsed(ResourceCategory::Book) == 2);
+
+    // Third different title must be rejected.
+    CHECK(
+        !b.checkTitle(
+            ResourceCategory::Book,
+            "Q7-B3").empty());
+
+    CHECK(
+        b.titlesUsed(ResourceCategory::Book) == 2);
+
+    // A category without a title limit is unrestricted.
+    CHECK(
+        !b.titleLimitFor(ResourceCategory::Journal).has_value());
+
+    CHECK(
+        b.checkTitle(
+            ResourceCategory::Journal,
+            "Q7-J1").empty());
+
+    // Zero is a valid limit: no different titles may be purchased.
+    Budget zeroTitleBudget(Money::of(1000));
+
+    zeroTitleBudget.setTitleLimit(
+        ResourceCategory::Book,
+        0);
+
+    CHECK(
+        !zeroTitleBudget.checkTitle(
+            ResourceCategory::Book,
+            "Q7-B1").empty());
+
+    CHECK(
+        zeroTitleBudget.titlesUsed(
+            ResourceCategory::Book) == 0);
+
+    // Negative limits are invalid.
+    CHECK_THROWS(
+        b.setTitleLimit(ResourceCategory::Book, -1),
+        std::invalid_argument);
+}
+
+static void testAcquisitionTitleLimits() {
+    Catalog c;
+
+    c.emplace<Book>(
+        "Q7-B1",
+        "First Book",
+        std::vector<std::string>{"Author One"},
+        "ISBN-Q7-1",
+        "Publisher",
+        2026,
+        Money::of(100));
+
+    c.emplace<Book>(
+        "Q7-B2",
+        "Second Book",
+        std::vector<std::string>{"Author Two"},
+        "ISBN-Q7-2",
+        "Publisher",
+        2026,
+        Money::of(100));
+
+    c.emplace<Book>(
+        "Q7-B3",
+        "Third Book",
+        std::vector<std::string>{"Author Three"},
+        "ISBN-Q7-3",
+        "Publisher",
+        2026,
+        Money::of(100));
+
+    Budget b(Money::of(1000));
+
+    b.setQuota(
+        ResourceCategory::Book,
+        {10, Money::of(1000)});
+
+    // At most two different Book titles.
+    b.setTitleLimit(
+        ResourceCategory::Book,
+        2);
+
+    AcquisitionManager acq(c, b);
+
+    std::string reason;
+
+    // First title is approved.
+    CHECK(
+        acq.canPurchase(
+            "Q7-B1",
+            1,
+            &reason));
+
+    CHECK(reason.empty());
+
+    const auto& first =
+        acq.purchase("Q7-B1", 1);
+
+    CHECK(first.approved);
+
+    CHECK(
+        b.titlesUsed(
+            ResourceCategory::Book) == 1);
+
+    // Buying more copies of the same title does not
+    // consume another title slot.
+    CHECK(
+        acq.canPurchase(
+            "Q7-B1",
+            2,
+            &reason));
+
+    CHECK(reason.empty());
+
+    const auto& sameTitle =
+        acq.purchase("Q7-B1", 2);
+
+    CHECK(sameTitle.approved);
+
+    CHECK(
+        b.titlesUsed(
+            ResourceCategory::Book) == 1);
+
+    // Second different title is approved.
+    CHECK(
+        acq.canPurchase(
+            "Q7-B2",
+            1,
+            &reason));
+
+    CHECK(reason.empty());
+
+    const auto& second =
+        acq.purchase("Q7-B2", 1);
+
+    CHECK(second.approved);
+
+    CHECK(
+        b.titlesUsed(
+            ResourceCategory::Book) == 2);
+
+    // Third different title is rejected by the title limit.
+    CHECK(
+        !acq.canPurchase(
+            "Q7-B3",
+            1,
+            &reason));
+
+    CHECK(!reason.empty());
+
+    CHECK(
+        reason.find("title") != std::string::npos);
+
+    CHECK_THROWS(
+        acq.purchase("Q7-B3", 1),
+        QuotaExceededError);
+
+    // The failed title purchase must not change usage,
+    // holdings or number of recorded successful purchases.
+    CHECK(
+        b.titlesUsed(
+            ResourceCategory::Book) == 2);
+
+    CHECK(
+        c.holdings("Q7-B3") == 0);
+
+    // Batch processing must also enforce the title limit.
+    auto results = acq.processBatch({
+        {"Q7-B3", 1},
+        {"Q7-B1", 1}
+    });
+
+    CHECK(results.size() == 2);
+
+    CHECK(!results[0].approved);
+
+    CHECK(
+        results[0].reason.find("title") !=
+        std::string::npos);
+
+    // Existing title is still allowed.
+    CHECK(results[1].approved);
+
+    CHECK(
+        c.holdings("Q7-B1") == 4);
+
+    CHECK(
+        b.titlesUsed(
+            ResourceCategory::Book) == 2);
+}
 int main() {
     testMoney();
     testResourcesAndCost();
@@ -509,6 +788,12 @@ int main() {
     testAcquisition();
     testTaxes();
     testPostTaxQuota();
-    std::cout << (g_checks - g_failures) << "/" << g_checks << " checks passed\n";
+    testTitleLimits();
+    testAcquisitionTitleLimits();
+
+    std::cout << (g_checks - g_failures)
+              << "/" << g_checks
+              << " checks passed\n";
+
     return g_failures == 0 ? 0 : 1;
 }
