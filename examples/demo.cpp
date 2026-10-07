@@ -41,9 +41,24 @@ int main() {
     budget.setQuota(ResourceCategory::EBook,{5, Money::of(2500)});
     budget.setQuota(ResourceCategory::AudioBook, {5, Money::of(2500)});
     budget.setQuota(ResourceCategory::Thesis, {10, Money::of(1000)});
-    budget.setQuota(ResourceCategory::ElectronicResource, {40, Money::of(12000)});
+    budget.setQuota(ResourceCategory::ElectronicResource, {40, Money::of(13000)});
 
-    AcquisitionManager acq(catalog, budget);
+    // Q6: configurable tax rates.
+    // Print resources: 5%
+    // Electronic resources: 10%
+    AcquisitionManager acq(catalog, budget, 5, 10);
+    std::cout << "\n=== Q6 Tax Configuration ===\n";
+    std::cout << "Print tax rate: " << acq.printTaxPercent() << "%\n";
+    std::cout << "Electronic tax rate: "
+            << acq.electronicTaxPercent() << "%\n";
+
+    std::cout << "B001, 1 copy pre-tax: "
+            << Money::of(450)
+            << ", post-tax quote: "
+            << acq.quote("B001", 1) << "\n";
+
+    std::cout << "E001, 1 seat pre-tax: 800.00, "
+          << "post-tax quote " << acq.quote("E001", 1) << "\n";
     std::cout << "\n=== Quotes ===\n";
     std::cout << "5 copies of B002  = " << acq.quote("B002", 5) << "\n";
     std::cout << "2 copies of J001 for 1 year = " << acq.quote("J001", 2) << "\n";
@@ -51,23 +66,25 @@ int main() {
     std::cout << "3 seats of A001 = " << acq.quote("A001", 3) << "  (AudioBook)\n";
     std::cout << "1 copy of T001 = " << acq.quote("T001", 1) << "  (Thesis, usually free)\n";
     std::cout << "20 seats of R001  = " << acq.quote("R001", 20) << "  (incl. platform fee)\n";
-    std::cout << "Q5 bulk discount quotes:\n";
-    std::cout << "  10 copies of B002 (hardcover + bulk discount): "<< acq.quote("B002", 10) << "\n";
-    std::cout << "  60 seats of R001 (first 50 full price, remaining half price): "<< acq.quote("R001", 60) << "\n";
+    std::cout << "Q5 bulk discount quotes (now including Q6 tax):\n";
+    std::cout << "  10 copies of B002 (hardcover + bulk discount): "
+            << acq.quote("B002", 10) << "\n";
+    std::cout << "  60 seats of R001 (first 50 full price, remaining half price): "
+            << acq.quote("R001", 60) << "\n";
 
     acq.processBatch({
-        {"B001", 4},   // 1800  ok
-        {"B002", 4},   // 5760  ok -> book spend 7560
-        {"B001", 1},   // 450   rejected: book spend quota (440 left)
-        {"J001", 6},   // 600   ok  -> journal quota becomes 6/6
-        {"R001", 20},  // 5000  ok
-        {"R002", 25},  // 10000 rejected: e-resource unit quota (20 seats left)
-        {"R002", 15},  // 6000  ok  -> e-resource spend 11000
-        {"R002", 5},   // 2000  rejected: e-resource spend quota (1000 left)
-        {"E001", 5},   // 1700  approved: separate EBook quota
-        {"A001", 3},   // 900   approved: AudioBook quota
-        {"T001", 1},   // 0     approved: Thesis is free
-        {"X999", 1},   // rejected: unknown id
+    {"B001", 4},   // 1800 + 5% tax = 1890, approved
+    {"B002", 4},   // 5760 + 5% tax = 6048, approved
+    {"B001", 1},   // 450 + 5% tax = 472.50, rejected: Book quota
+    {"J001", 6},   // 600 + 5% tax = 630, approved
+    {"R001", 20},  // 5000 + 10% tax = 5500, approved
+    {"R002", 25},  // rejected: e-resource unit quota
+    {"R002", 15},  // 6000 + 10% tax = 6600, approved
+    {"R002", 5},   // 2000 + 10% tax = 2200, rejected: spend quota
+    {"E001", 5},   // 1700 + 10% tax = 1870, approved
+    {"A001", 3},   // 900 + 10% tax = 990, approved
+    {"T001", 1},   // 0 + tax = 0, approved: Thesis is free
+    {"X999", 1},   // rejected: unknown id
     });
     std::cout << "\n=== Acquisition report ===\n";
     acq.printReport(std::cout);
@@ -80,7 +97,8 @@ int main() {
         std::cout << "  " << r->id() << ": " << catalog.holdings(r->id())
                   << (r->isDigital() ? " seats" : " copies") << "\n";
 
-    // Direct purchase: errors are reported with exceptions
+    // Direct purchase: errors are reported with exceptions.
+    // Q6 tax is included when checking the remaining quota.
     std::cout << "\n=== Direct purchase that breaks a quota ===\n";
     try {
         acq.purchase("B002", 1);

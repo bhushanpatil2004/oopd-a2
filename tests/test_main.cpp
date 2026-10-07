@@ -356,6 +356,7 @@ static void testBudget() {
     Resource& thesisResource = thesis;
     CHECK(thesisResource.category() == ResourceCategory::Thesis);
     CHECK(thesisResource.costFor(2) == Money{});
+
 }
 
 static void testAcquisition() {
@@ -394,13 +395,120 @@ static void testAcquisition() {
     CHECK(c.holdings("R1") == 10 && c.holdings("B1") == 3);
     CHECK(acq.history().size() == 6);
 }
+static void testTaxes() {
+    Catalog c;
 
+    c.emplace<Book>(
+        "Q6-B",
+        "Tax Book",
+        std::vector<std::string>{"Author"},
+        "ISBN-Q6",
+        "Publisher",
+        2026,
+        Money::of(100));
+
+    c.emplace<ElectronicResource>(
+        "Q6-E",
+        "Tax Electronic",
+        "Publisher",
+        2026,
+        Money::of(100),
+        "url",
+        LicenseModel::AnnualSubscription,
+        Money::of(0));
+
+    Budget b(Money::of(1000));
+
+    b.setQuota(
+        ResourceCategory::Book,
+        {10, Money::of(150)});
+
+    b.setQuota(
+        ResourceCategory::ElectronicResource,
+        {10, Money::of(150)});
+
+    AcquisitionManager acq(c, b, 10, 20);
+
+    // Configurable tax rates.
+    CHECK(acq.printTaxPercent() == 10);
+    CHECK(acq.electronicTaxPercent() == 20);
+
+    // Quotes include tax.
+    CHECK(acq.quote("Q6-B", 1) == Money::of(110));
+    CHECK(acq.quote("Q6-E", 1) == Money::of(120));
+
+    // Purchase record stores pre-tax, tax and post-tax amounts.
+    const auto& bookRecord = acq.purchase("Q6-B", 1);
+
+    CHECK(bookRecord.preTaxCost == Money::of(100));
+    CHECK(bookRecord.tax == Money::of(10));
+    CHECK(bookRecord.cost == Money::of(110));
+
+    // Budget stores the post-tax amount.
+    CHECK(b.spent() == Money::of(110));
+    CHECK(b.usageFor(ResourceCategory::Book).spent == Money::of(110));
+
+    // Tax rates can be changed.
+    acq.setTaxRates(5, 15);
+
+    CHECK(acq.printTaxPercent() == 5);
+    CHECK(acq.electronicTaxPercent() == 15);
+
+    CHECK(acq.quote("Q6-B", 1) == Money::of(105));
+    CHECK(acq.quote("Q6-E", 1) == Money::of(115));
+
+    // Invalid tax rates are rejected.
+    CHECK_THROWS(
+        acq.setTaxRates(-1, 10),
+        std::invalid_argument);
+
+    CHECK_THROWS(
+        acq.setTaxRates(10, 101),
+        std::invalid_argument);
+}
+
+static void testPostTaxQuota() {
+    Catalog c;
+
+    c.emplace<Book>(
+        "Q6-Q",
+        "Quota Tax Book",
+        std::vector<std::string>{"Author"},
+        "ISBN-Q6-Q",
+        "Publisher",
+        2026,
+        Money::of(100));
+
+    Budget b(Money::of(5000));
+
+    // Quota is deliberately below the post-tax price.
+    b.setQuota(
+        ResourceCategory::Book,
+        {10, Money::of(105)});
+
+    // Book tax = 10%.
+    AcquisitionManager acq(c, b, 10, 0);
+
+    // Pre-tax = 100, tax = 10, post-tax = 110.
+    CHECK(acq.quote("Q6-Q", 1) == Money::of(110));
+
+    std::string reason;
+
+    // 110 > quota of 105, so this must be rejected.
+    CHECK(!acq.canPurchase("Q6-Q", 1, &reason));
+    CHECK(!reason.empty());
+
+    // Budget must remain unchanged after the rejected check.
+    CHECK(b.spent() == Money{});
+}
 int main() {
     testMoney();
     testResourcesAndCost();
     testCatalog();
     testBudget();
     testAcquisition();
+    testTaxes();
+    testPostTaxQuota();
     std::cout << (g_checks - g_failures) << "/" << g_checks << " checks passed\n";
     return g_failures == 0 ? 0 : 1;
 }

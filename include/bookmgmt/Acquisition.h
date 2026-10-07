@@ -22,14 +22,23 @@ struct PurchaseRecord {
     std::string title;
     ResourceCategory category;
     int quantity;
-    Money cost;
+    Money preTaxCost;
+    Money tax;
+    Money cost;  // final cost after tax
     bool approved;
     std::string reason;  // why it was rejected; empty if approved
 };
 
 class AcquisitionManager {
 public:
-    AcquisitionManager(Catalog& catalog, Budget& budget);
+    AcquisitionManager(Catalog& catalog, Budget& budget,
+                   int printTaxPercent = 0,
+                   int electronicTaxPercent = 0);
+
+    void setTaxRates(int printTaxPercent, int electronicTaxPercent);
+
+    int printTaxPercent() const { return printTaxPercent_; }
+    int electronicTaxPercent() const { return electronicTaxPercent_; }
 
     // Price of a request without buying anything. Throws NotFoundError.
     Money quote(const std::string& id, int quantity) const;
@@ -55,13 +64,18 @@ public:
 
 private:
     Money purchaseCost(const Resource* r, int quantity) const;
+    Money taxFor(const Resource* r, Money preTaxCost) const;
     PurchaseRecord& record(const Resource* r, const std::string& id, int qty,
-                           Money cost, bool approved, std::string reason);
+                       Money preTaxCost, Money tax, Money cost,
+                       bool approved, std::string reason);
 
     Catalog& catalog_;
     Budget& budget_;
     std::vector<PurchaseRecord> history_;
     int nextOrderNo_ = 1;
+
+    int printTaxPercent_;
+    int electronicTaxPercent_;
 };
 
 }  // namespace bookmgmt
