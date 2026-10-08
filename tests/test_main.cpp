@@ -1883,6 +1883,293 @@ static void testAllOrNothingBatch() {
     CHECK(acq.history().size() == 4);
 }
 
+/*
+ * Q12 — Vendors
+ *
+ * The same resource can be offered by multiple vendors at different
+ * prices. The cheapest vendor must be selected automatically.
+ */
+static void testVendors() {
+    Catalog c;
+
+    c.emplace<Book>(
+        "Q12-B1",
+        "Vendor Test Book",
+        std::vector<std::string>{"Vendor Author"},
+        "ISBN-Q12-1",
+        "Vendor Publisher",
+        2026,
+        Money::of(500));
+
+    c.emplace<Book>(
+        "Q12-B2",
+        "Second Vendor Book",
+        std::vector<std::string>{"Another Author"},
+        "ISBN-Q12-2",
+        "Vendor Publisher",
+        2026,
+        Money::of(800));
+
+    Budget b(Money::of(5000));
+
+    b.setQuota(
+        ResourceCategory::Book,
+        {10, Money::of(5000)});
+
+    b.setTitleLimit(
+        ResourceCategory::Book,
+        3);
+
+    AcquisitionManager acq(c, b);
+
+    // ---------------------------------------------------------
+    // Q12 — Register multiple vendors for the same title
+    // ---------------------------------------------------------
+
+    acq.addVendor(
+        "Q12-B1",
+        "Vendor A",
+        Money::of(500));
+
+    acq.addVendor(
+        "Q12-B1",
+        "Vendor B",
+        Money::of(420));
+
+    acq.addVendor(
+        "Q12-B1",
+        "Vendor C",
+        Money::of(470));
+
+    // The cheapest vendor must be Vendor B at ₹420.
+    auto cheapest = acq.cheapestVendor("Q12-B1");
+
+    CHECK(cheapest == "Vendor B");
+
+    // ---------------------------------------------------------
+    // Q12 — A more expensive vendor must not be selected
+    // ---------------------------------------------------------
+
+    acq.addVendor(
+        "Q12-B1",
+        "Vendor D",
+        Money::of(600));
+
+    cheapest = acq.cheapestVendor("Q12-B1");
+
+    CHECK(cheapest == "Vendor B");
+
+    // ---------------------------------------------------------
+    // Q12 — Quote must use the cheapest vendor
+    // ---------------------------------------------------------
+
+    CHECK(
+        acq.quote("Q12-B1", 1) ==
+        Money::of(420));
+
+    CHECK(
+        acq.quote("Q12-B1", 2) ==
+        Money::of(840));
+
+    // ---------------------------------------------------------
+    // Q12 — Purchase must use the cheapest vendor
+    // ---------------------------------------------------------
+
+    PurchaseRecord first =
+        acq.purchase("Q12-B1", 2);
+
+    CHECK(first.approved);
+
+    CHECK(first.vendor == "Vendor B");
+
+    CHECK(first.preTaxCost == Money::of(840));
+
+    CHECK(first.cost == Money::of(840));
+
+    CHECK(b.spent() == Money::of(840));
+
+    CHECK(c.holdings("Q12-B1") == 2);
+
+    // ---------------------------------------------------------
+    // Q12 — Adding a cheaper vendor changes future purchases
+    // ---------------------------------------------------------
+
+    acq.addVendor(
+        "Q12-B1",
+        "Vendor E",
+        Money::of(390));
+
+    cheapest = acq.cheapestVendor("Q12-B1");
+
+    CHECK(cheapest == "Vendor E");
+
+    CHECK(
+        acq.quote("Q12-B1", 1) ==
+        Money::of(390));
+
+    PurchaseRecord second =
+        acq.purchase("Q12-B1", 1);
+
+    CHECK(second.approved);
+
+    CHECK(second.vendor == "Vendor E");
+
+    CHECK(second.preTaxCost == Money::of(390));
+
+    CHECK(second.cost == Money::of(390));
+
+    CHECK(b.spent() == Money::of(1230));
+
+    CHECK(c.holdings("Q12-B1") == 3);
+
+    // ---------------------------------------------------------
+    // Q12 — A different title can have different vendors
+    // ---------------------------------------------------------
+
+    acq.addVendor(
+        "Q12-B2",
+        "Book Supplier",
+        Money::of(800));
+
+    acq.addVendor(
+        "Q12-B2",
+        "Academic Supplier",
+        Money::of(750));
+
+    cheapest = acq.cheapestVendor("Q12-B2");
+
+    CHECK(cheapest == "Academic Supplier");
+
+    CHECK(
+        acq.quote("Q12-B2", 2) ==
+        Money::of(1500));
+
+    PurchaseRecord third =
+        acq.purchase("Q12-B2", 2);
+
+    CHECK(third.approved);
+
+    CHECK(third.vendor == "Academic Supplier");
+
+    CHECK(third.preTaxCost == Money::of(1500));
+
+    CHECK(third.cost == Money::of(1500));
+
+    CHECK(c.holdings("Q12-B2") == 2);
+
+    CHECK(b.spent() == Money::of(2730));
+
+    // ---------------------------------------------------------
+    // Q12 — Batch purchases must also use cheapest vendors
+    // ---------------------------------------------------------
+
+    auto batch = acq.processBatch({
+        {"Default", "Q12-B1", 1},
+        {"Default", "Q12-B2", 1}
+    });
+
+    CHECK(batch.size() == 2);
+
+    CHECK(batch[0].approved);
+    CHECK(batch[1].approved);
+
+    CHECK(batch[0].vendor == "Vendor E");
+    CHECK(batch[1].vendor == "Academic Supplier");
+
+    CHECK(
+        batch[0].preTaxCost ==
+        Money::of(390));
+
+    CHECK(
+        batch[1].preTaxCost ==
+        Money::of(750));
+
+    CHECK(c.holdings("Q12-B1") == 4);
+    CHECK(c.holdings("Q12-B2") == 3);
+
+    CHECK(b.spent() == Money::of(3870));
+
+    // ---------------------------------------------------------
+    // Q12 — Vendor information must remain in order history
+    // ---------------------------------------------------------
+
+    CHECK(acq.history().size() == 5);
+
+    CHECK(
+        acq.history()[0].vendor ==
+        "Vendor B");
+
+    CHECK(
+        acq.history()[1].vendor ==
+        "Vendor E");
+
+    CHECK(
+        acq.history()[2].vendor ==
+        "Academic Supplier");
+
+    CHECK(
+        acq.history()[3].vendor ==
+        "Vendor E");
+
+    CHECK(
+        acq.history()[4].vendor ==
+        "Academic Supplier");
+
+    // ---------------------------------------------------------
+    // Q12 — A resource without vendors keeps normal pricing
+    // ---------------------------------------------------------
+
+    c.emplace<Book>(
+        "Q12-B3",
+        "No Vendor Book",
+        std::vector<std::string>{"Author"},
+        "ISBN-Q12-3",
+        "Publisher",
+        2026,
+        Money::of(250));
+
+    CHECK(
+        acq.quote("Q12-B3", 1) ==
+        Money::of(250));
+
+    PurchaseRecord noVendor =
+        acq.purchase("Q12-B3", 1);
+
+    CHECK(noVendor.approved);
+
+    CHECK(noVendor.vendor.empty());
+
+    CHECK(noVendor.cost == Money::of(250));
+
+    CHECK(c.holdings("Q12-B3") == 1);
+
+    // ---------------------------------------------------------
+    // Q12 — Invalid vendor prices must be rejected
+    // ---------------------------------------------------------
+
+    CHECK_THROWS(
+        acq.addVendor(
+            "Q12-B1",
+            "Invalid Vendor",
+            Money::fromMinor(-1)),
+        std::invalid_argument);
+
+    // ---------------------------------------------------------
+    // Q12 — Unknown resources cannot receive vendors
+    // ---------------------------------------------------------
+
+    CHECK_THROWS(
+        acq.addVendor(
+            "Q12-UNKNOWN",
+            "Unknown Vendor",
+            Money::of(100)),
+        NotFoundError);
+
+    CHECK_THROWS(
+        acq.cheapestVendor("Q12-UNKNOWN"),
+        NotFoundError);
+}
+
 int main() {
     testMoney();
     testResourcesAndCost();
@@ -1897,6 +2184,7 @@ int main() {
     testDepartmentBudgets();
     testBudgetRollover();
     testAllOrNothingBatch();
+    testVendors();
 
     std::cout
         << (g_checks - g_failures)

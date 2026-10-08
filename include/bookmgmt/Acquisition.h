@@ -22,6 +22,12 @@ struct PurchaseRequest {
     int quantity;  // copies for print, seats for electronic
 };
 
+// Q12: a vendor offer for a particular resource.
+struct VendorOffer {
+    std::string vendor;
+    Money price;
+};
+
 struct PurchaseRecord {
     int orderNo;
     Department department;
@@ -34,6 +40,9 @@ struct PurchaseRecord {
     Money cost;  // final cost after tax
     bool approved;
     std::string reason;  // why it was rejected; empty if approved
+
+    // Q12: vendor used for the approved purchase.
+    std::string vendor;
 
     // Q8: true only for a separate cancellation record.
     bool cancellation = false;
@@ -56,6 +65,15 @@ public:
     // Q9: returns the budget assigned to a department.
     Budget& departmentBudget(const Department& department);
     const Budget& departmentBudget(const Department& department) const;
+
+    // Q12: register a vendor and its price for a resource.
+    void addVendor(const std::string& resourceId,
+                   const std::string& vendor,
+                   Money price);
+
+    // Q12: returns the cheapest registered vendor for a resource.
+    std::string cheapestVendor(
+        const std::string& resourceId) const;
 
     // Price of a request without buying anything. Uses the default
     // department budget only for compatibility; pricing itself is
@@ -106,6 +124,16 @@ private:
     Money purchaseCost(const Resource* r, int quantity) const;
     Money taxFor(const Resource* r, Money preTaxCost) const;
 
+    // Q12: returns the cheapest vendor offer for a resource.
+    // Returns nullptr when no vendor has been registered.
+    const VendorOffer* cheapestOffer(
+        const std::string& resourceId) const;
+
+    // Q12: calculates the resource cost using a vendor's unit price.
+    Money vendorCost(const Resource* r,
+                     int quantity,
+                     Money vendorPrice) const;
+
     PurchaseRecord& record(const Resource* r,
                            const Department& department,
                            const std::string& id,
@@ -114,7 +142,8 @@ private:
                            Money tax,
                            Money cost,
                            bool approved,
-                           std::string reason);
+                           std::string reason,
+                           std::string vendor = {});
 
     // Q8: checks whether an approved purchase of this resource still exists
     // after excluding the order that is being cancelled.
@@ -133,6 +162,9 @@ private:
 
     // Q9: additional department budgets.
     std::map<Department, Budget*> departmentBudgets_;
+
+    // Q12: vendor offers indexed by resource ID.
+    std::map<std::string, std::vector<VendorOffer>> vendorOffers_;
 
     std::vector<PurchaseRecord> history_;
     int nextOrderNo_ = 1;

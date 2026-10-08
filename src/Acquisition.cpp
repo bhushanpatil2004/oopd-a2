@@ -5,7 +5,10 @@
 #include <stdexcept>
 #include <utility>
 
+#include "bookmgmt/Book.h"
+#include "bookmgmt/ElectronicResource.h"
 #include "bookmgmt/Exceptions.h"
+#include "bookmgmt/Journal.h"
 
 namespace bookmgmt {
 
@@ -95,22 +98,227 @@ const Budget& AcquisitionManager::departmentBudget(
     return *budget;
 }
 
-Money AcquisitionManager::purchaseCost(const Resource* r,
-                                       int quantity) const {
-    Money cost = r->costFor(quantity);
+/*
+ * Q12: Register a vendor offer for a resource.
+ *
+ * Multiple vendors may be registered for the same resource.
+ * If the same vendor is registered again, its price is updated
+ * instead of creating a duplicate offer.
+ */
+void AcquisitionManager::addVendor(
+    const std::string& resourceId,
+    const std::string& vendor,
+    Money price) {
 
+    if (!catalog_.find(resourceId)) {
+        throw NotFoundError(resourceId);
+    }
+
+    if (vendor.empty()) {
+        throw std::invalid_argument(
+            "vendor name must not be empty");
+    }
+
+    if (price.isNegative()) {
+        throw std::invalid_argument(
+            "vendor price must not be negative");
+    }
+
+    auto& offers = vendorOffers_[resourceId];
+
+    for (auto& offer : offers) {
+        if (offer.vendor == vendor) {
+            offer.price = price;
+            return;
+        }
+    }
+
+    offers.push_back(
+        VendorOffer{vendor, price});
+}
+
+/*
+ * Q12: Find the cheapest registered vendor.
+ *
+ * If two vendors have exactly the same price, the vendor that
+ * was registered first is selected.
+ */
+const VendorOffer* AcquisitionManager::cheapestOffer(
+    const std::string& resourceId) const {
+
+    auto it = vendorOffers_.find(resourceId);
+
+    if (it == vendorOffers_.end() ||
+        it->second.empty()) {
+        return nullptr;
+    }
+
+    const VendorOffer* cheapest =
+        &it->second.front();
+
+    for (const auto& offer : it->second) {
+        if (offer.price < cheapest->price) {
+            cheapest = &offer;
+        }
+    }
+
+    return cheapest;
+}
+
+std::string AcquisitionManager::cheapestVendor(
+    const std::string& resourceId) const {
+
+    const VendorOffer* offer =
+        cheapestOffer(resourceId);
+
+    if (!offer) {
+        throw NotFoundError(resourceId);
+    }
+
+    return offer->vendor;
+}
+
+/*
+ * Q12: Calculate cost using a vendor's unit price.
+ *
+ * The normal Resource hierarchy remains unchanged. Vendor prices
+ * temporarily replace the resource's unit price while preserving
+ * resource-specific pricing rules:
+ *
+ * Book:
+ *     vendor price * copies
+ *     + 20% for Hardcover
+ *
+ * Journal:
+ *     vendor price * copies * subscription years
+ *
+ * ElectronicResource:
+ *     platform fee + vendor price * seats
+ *
+ * Thesis/other resources:
+ *     vendor price * quantity
+ *
+ * Q5's bulk discount is applied separately in purchaseCost().
+ */
+Money AcquisitionManager::vendorCost(
+    const Resource* r,
+    int quantity,
+    Money vendorPrice) const {
+
+    if (quantity <= 0) {
+        throw std::invalid_argument(
+            "quantity must be positive");
+    }
+
+    switch (r->category()) {
+        case ResourceCategory::Book: {
+            Money cost = vendorPrice * quantity;
+
+            const Book* book =
+                dynamic_cast<const Book*>(r);
+
+            if (book &&
+                book->binding() == Binding::Hardcover) {
+                cost = Money::fromMinor(
+                    (cost.minorUnits() * 120) / 100);
+            }
+
+            return cost;
+        }
+
+        case ResourceCategory::Journal: {
+            const Journal* journal =
+                dynamic_cast<const Journal*>(r);
+
+            if (journal) {
+                return vendorPrice *
+                       quantity *
+                       journal->subscriptionYears();
+            }
+
+            return vendorPrice * quantity;
+        }
+
+        case ResourceCategory::ElectronicResource:
+        case ResourceCategory::EBook:
+        case ResourceCategory::AudioBook: {
+            const ElectronicResource* electronic =
+                dynamic_cast<const ElectronicResource*>(r);
+
+            if (!electronic) {
+                return vendorPrice * quantity;
+            }
+
+            Money cost =
+                electronic->platformFee();
+
+            if (quantity <= 50) {
+                return cost +
+                       vendorPrice * quantity;
+            }
+
+            cost += vendorPrice * 50;
+
+            const int extraSeats =
+                quantity - 50;
+
+            Money halfPrice =
+                Money::fromMinor(
+                    vendorPrice.minorUnits() / 2);
+
+            return cost +
+                   halfPrice * extraSeats;
+        }
+
+        case ResourceCategory::Thesis:
+            return vendorPrice * quantity;
+    }
+
+    return vendorPrice * quantity;
+}
+
+Money AcquisitionManager::purchaseCost(
+    const Resource* r,
+    int quantity) const {
+
+    /*
+     * Q12:
+     * If vendors are registered, use the cheapest vendor's price.
+     * Otherwise preserve the original Resource::costFor() behavior.
+     */
+    Money cost;
+
+    const VendorOffer* offer =
+        cheapestOffer(r->id());
+
+    if (offer) {
+        cost = vendorCost(
+            r,
+            quantity,
+            offer->price);
+    } else {
+        cost = r->costFor(quantity);
+    }
+
+    /*
+     * Q5: bulk discount for print resources.
+     */
     if (quantity >= 10 &&
         (r->category() == ResourceCategory::Book ||
          r->category() == ResourceCategory::Journal ||
          r->category() == ResourceCategory::Thesis)) {
-        return Money::fromMinor((cost.minorUnits() * 90) / 100);
+
+        return Money::fromMinor(
+            (cost.minorUnits() * 90) / 100);
     }
 
     return cost;
 }
 
-Money AcquisitionManager::taxFor(const Resource* r,
-                                 Money preTaxCost) const {
+Money AcquisitionManager::taxFor(
+    const Resource* r,
+    Money preTaxCost) const {
+
     if (!r) {
         return Money{};
     }
@@ -135,14 +343,18 @@ Money AcquisitionManager::taxFor(const Resource* r,
         (preTaxCost.minorUnits() * rate) / 100);
 }
 
-Money AcquisitionManager::quote(const std::string& id,
-                                 int quantity) const {
-    const Resource& r = catalog_.get(id);
+Money AcquisitionManager::quote(
+    const std::string& id,
+    int quantity) const {
+
+    const Resource& r =
+        catalog_.get(id);
 
     const Money preTaxCost =
         purchaseCost(&r, quantity);
 
-    return preTaxCost + taxFor(&r, preTaxCost);
+    return preTaxCost +
+           taxFor(&r, preTaxCost);
 }
 
 Money AcquisitionManager::quote(
@@ -153,12 +365,14 @@ Money AcquisitionManager::quote(
     // Check that the department exists.
     departmentBudget(department);
 
-    const Resource& r = catalog_.get(id);
+    const Resource& r =
+        catalog_.get(id);
 
     const Money preTaxCost =
         purchaseCost(&r, quantity);
 
-    return preTaxCost + taxFor(&r, preTaxCost);
+    return preTaxCost +
+           taxFor(&r, preTaxCost);
 }
 
 bool AcquisitionManager::canPurchase(
@@ -188,9 +402,11 @@ bool AcquisitionManager::canPurchase(
         catalog_.find(id);
 
     if (!budget) {
-        why = "department not found: " + department;
+        why = "department not found: " +
+              department;
     } else if (!r) {
-        why = "resource not found: " + id;
+        why = "resource not found: " +
+              id;
     } else if (quantity <= 0) {
         why = "quantity must be positive";
     } else {
@@ -201,10 +417,13 @@ bool AcquisitionManager::canPurchase(
 
         if (why.empty()) {
             const Money preTaxCost =
-                purchaseCost(r, quantity);
+                purchaseCost(
+                    r,
+                    quantity);
 
             const Money postTaxCost =
-                preTaxCost + taxFor(r, preTaxCost);
+                preTaxCost +
+                taxFor(r, preTaxCost);
 
             why = budget->check(
                 r->category(),
@@ -229,7 +448,8 @@ PurchaseRecord& AcquisitionManager::record(
     Money tax,
     Money cost,
     bool approved,
-    std::string reason) {
+    std::string reason,
+    std::string vendor) {
 
     history_.push_back(PurchaseRecord{
         nextOrderNo_++,
@@ -243,6 +463,7 @@ PurchaseRecord& AcquisitionManager::record(
         cost,
         approved,
         std::move(reason),
+        std::move(vendor),
         false
     });
 
@@ -286,13 +507,18 @@ const PurchaseRecord& AcquisitionManager::purchase(
     }
 
     const Money preTaxCost =
-        purchaseCost(&r, quantity);
+        purchaseCost(
+            &r,
+            quantity);
 
     const Money tax =
-        taxFor(&r, preTaxCost);
+        taxFor(
+            &r,
+            preTaxCost);
 
     const Money postTaxCost =
-        preTaxCost + tax;
+        preTaxCost +
+        tax;
 
     const std::string reason =
         budget.check(
@@ -301,7 +527,8 @@ const PurchaseRecord& AcquisitionManager::purchase(
             postTaxCost);
 
     if (!reason.empty()) {
-        if (reason.find("quota") != std::string::npos) {
+        if (reason.find("quota") !=
+            std::string::npos) {
             throw QuotaExceededError(reason);
         }
 
@@ -322,6 +549,13 @@ const PurchaseRecord& AcquisitionManager::purchase(
         id,
         quantity);
 
+    // Q12: record the cheapest vendor actually used.
+    const VendorOffer* offer =
+        cheapestOffer(r.id());
+
+    const std::string vendor =
+        offer ? offer->vendor : std::string{};
+
     return record(
         &r,
         department,
@@ -331,10 +565,12 @@ const PurchaseRecord& AcquisitionManager::purchase(
         tax,
         postTaxCost,
         true,
-        {});
+        {},
+        vendor);
 }
 
-std::vector<PurchaseRecord> AcquisitionManager::processBatch(
+std::vector<PurchaseRecord>
+AcquisitionManager::processBatch(
     const std::vector<PurchaseRequest>& reqs,
     bool allOrNothing) {
 
@@ -356,10 +592,12 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
         for (const auto& req : reqs) {
 
             const Budget* budget =
-                findDepartmentBudget(req.department);
+                findDepartmentBudget(
+                    req.department);
 
             const Resource* r =
-                catalog_.find(req.resourceId);
+                catalog_.find(
+                    req.resourceId);
 
             Money preTaxCost;
             Money tax;
@@ -392,7 +630,8 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
                             preTaxCost);
 
                     postTaxCost =
-                        preTaxCost + tax;
+                        preTaxCost +
+                        tax;
 
                     why = budget->check(
                         r->category(),
@@ -403,7 +642,8 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
 
             if (why.empty()) {
                 Budget& mutableBudget =
-                    departmentBudget(req.department);
+                    departmentBudget(
+                        req.department);
 
                 mutableBudget.commit(
                     r->category(),
@@ -418,6 +658,15 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
                     req.resourceId,
                     req.quantity);
 
+                // Q12: record cheapest vendor used.
+                const VendorOffer* offer =
+                    cheapestOffer(r->id());
+
+                const std::string vendor =
+                    offer
+                        ? offer->vendor
+                        : std::string{};
+
                 results.push_back(
                     record(
                         r,
@@ -428,7 +677,8 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
                         tax,
                         postTaxCost,
                         true,
-                        {}));
+                        {},
+                        vendor));
             } else {
                 results.push_back(
                     record(
@@ -459,11 +709,15 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
      *   - title limits
      *   - purchased-title tracking
      *
+     * Q12 vendor selection is also performed during this validation.
+     *
      * The real budgets are untouched during validation.
      */
     std::map<Department, Budget> temporaryBudgets;
 
-    for (const auto& entry : departmentBudgets_) {
+    for (const auto& entry :
+         departmentBudgets_) {
+
         temporaryBudgets.emplace(
             entry.first,
             *entry.second);
@@ -475,6 +729,7 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
         Money preTaxCost;
         Money tax;
         Money postTaxCost;
+        std::string vendor;
     };
 
     std::vector<PendingPurchase> pending;
@@ -488,12 +743,15 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
     for (const auto& req : reqs) {
 
         auto budgetIt =
-            temporaryBudgets.find(req.department);
+            temporaryBudgets.find(
+                req.department);
 
         const Resource* r =
-            catalog_.find(req.resourceId);
+            catalog_.find(
+                req.resourceId);
 
-        if (budgetIt == temporaryBudgets.end()) {
+        if (budgetIt ==
+            temporaryBudgets.end()) {
             return {};
         }
 
@@ -528,7 +786,8 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
                 preTaxCost);
 
         const Money postTaxCost =
-            preTaxCost + tax;
+            preTaxCost +
+            tax;
 
         why = temporaryBudget.check(
             r->category(),
@@ -538,6 +797,19 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
         if (!why.empty()) {
             return {};
         }
+
+        /*
+         * Q12: determine the cheapest vendor during validation.
+         * The selected vendor is stored in PendingPurchase so the
+         * exact same vendor is recorded when the batch is committed.
+         */
+        const VendorOffer* offer =
+            cheapestOffer(r->id());
+
+        const std::string vendor =
+            offer
+                ? offer->vendor
+                : std::string{};
 
         /*
          * Apply the request only to the temporary budget.
@@ -559,7 +831,8 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
                 r,
                 preTaxCost,
                 tax,
-                postTaxCost
+                postTaxCost,
+                vendor
             });
     }
 
@@ -599,16 +872,19 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
                 item.tax,
                 item.postTaxCost,
                 true,
-                {}));
+                {},
+                item.vendor));
     }
 
     return results;
 }
+
 bool AcquisitionManager::hasActivePurchase(
     const std::string& resourceId,
     int excludedOrderNo) const {
 
     for (const auto& rec : history_) {
+
         if (rec.cancellation) {
             continue;
         }
@@ -668,11 +944,14 @@ const PurchaseRecord& AcquisitionManager::cancel(
     }
 
     Budget& budget =
-        departmentBudget(original->department);
+        departmentBudget(
+            original->department);
 
     // Check before changing any state.
-    if (catalog_.holdings(original->resourceId) <
+    if (catalog_.holdings(
+            original->resourceId) <
         original->quantity) {
+
         throw std::invalid_argument(
             "cannot cancel order: insufficient holdings");
     }
@@ -697,16 +976,19 @@ const PurchaseRecord& AcquisitionManager::cancel(
     bool departmentStillUsesTitle = false;
 
     for (const auto& rec : history_) {
+
         if (rec.cancellation ||
             !rec.approved ||
             rec.orderNo == original->orderNo ||
             cancelledOrders_.find(rec.orderNo) !=
                 cancelledOrders_.end()) {
+
             continue;
         }
 
         if (rec.department == original->department &&
             rec.resourceId == original->resourceId) {
+
             departmentStillUsesTitle = true;
             break;
         }
@@ -724,6 +1006,9 @@ const PurchaseRecord& AcquisitionManager::cancel(
     /*
      * Keep the original record unchanged and add a separate
      * cancellation record.
+     *
+     * Q12: cancellation records have no vendor because no
+     * new vendor purchase is made.
      */
     history_.push_back(PurchaseRecord{
         nextOrderNo_++,
@@ -738,6 +1023,7 @@ const PurchaseRecord& AcquisitionManager::cancel(
         true,
         "cancelled order #" +
             std::to_string(orderNo),
+        {},
         true
     });
 
@@ -807,8 +1093,15 @@ void AcquisitionManager::printReport(
            << "  "
            << rec.title;
 
+        // Q12: show the vendor used for an approved purchase.
+        if (!rec.vendor.empty()) {
+            os << "  vendor: "
+               << rec.vendor;
+        }
+
         if (!rec.approved ||
             rec.cancellation) {
+
             os << "\n        reason: "
                << rec.reason;
         }

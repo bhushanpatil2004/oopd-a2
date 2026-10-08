@@ -973,5 +973,223 @@ int main() {
                 ? "NOTHING WAS BOUGHT"
                 : "UNEXPECTED STATE")
         << "\n";
+
+
+        // =========================================================
+    // Q12 — Vendors
+    // =========================================================
+
+    std::cout
+        << "\n=== Q12 Vendors ===\n";
+
+    /*
+     * Use a separate catalogue and budget so the vendor demonstration
+     * is independent of the earlier Q1-Q11 examples.
+     */
+    Catalog q12Catalog;
+
+    q12Catalog.emplace<Book>(
+        "Q12-B1",
+        "Vendor Demo Book",
+        std::vector<std::string>{"Demo Author"},
+        "ISBN-Q12-1",
+        "Demo Publisher",
+        2026,
+        Money::of(500));
+
+    q12Catalog.emplace<Book>(
+        "Q12-B2",
+        "Second Vendor Demo Book",
+        std::vector<std::string>{"Second Author"},
+        "ISBN-Q12-2",
+        "Demo Publisher",
+        2026,
+        Money::of(800));
+
+    Budget q12Budget(Money::of(5000));
+
+    q12Budget.setQuota(
+        ResourceCategory::Book,
+        {10, Money::of(4000)});
+
+    q12Budget.setTitleLimit(
+        ResourceCategory::Book,
+        2);
+
+    AcquisitionManager q12Acq(
+        q12Catalog,
+        q12Budget);
+
+    // ---------------------------------------------------------
+    // Register several vendors for the same title.
+    // ---------------------------------------------------------
+
+    q12Acq.addVendor(
+        "Q12-B1",
+        "Vendor A",
+        Money::of(500));
+
+    q12Acq.addVendor(
+        "Q12-B1",
+        "Vendor B",
+        Money::of(420));
+
+    q12Acq.addVendor(
+        "Q12-B1",
+        "Vendor C",
+        Money::of(470));
+
+    std::string q12Cheapest =
+        q12Acq.cheapestVendor("Q12-B1");
+
+    std::cout
+        << "Q12-B1 cheapest vendor: "
+        << q12Cheapest
+        << "\n";
+
+    std::cout
+        << "Q12-B1 quote for 2 copies: "
+        << q12Acq.quote("Q12-B1", 2)
+        << "\n";
+
+    // ---------------------------------------------------------
+    // Purchase must automatically select Vendor B.
+    // ---------------------------------------------------------
+
+    PurchaseRecord q12First =
+        q12Acq.purchase("Q12-B1", 2);
+
+    std::cout
+        << "Purchase Q12-B1 x2: "
+        << (q12First.approved ? "APPROVED" : "REJECTED")
+        << "\n";
+
+    std::cout
+        << "Vendor used: "
+        << q12First.vendor
+        << "\n";
+
+    std::cout
+        << "Pre-tax cost: "
+        << q12First.preTaxCost
+        << "\n";
+
+    // ---------------------------------------------------------
+    // Add an even cheaper vendor.
+    // Future purchases must use it.
+    // ---------------------------------------------------------
+
+    q12Acq.addVendor(
+        "Q12-B1",
+        "Vendor D",
+        Money::of(390));
+
+    q12Cheapest =
+        q12Acq.cheapestVendor("Q12-B1");
+
+    std::cout
+        << "\nAfter adding a cheaper vendor:\n";
+
+    std::cout
+        << "Q12-B1 cheapest vendor: "
+        << q12Cheapest
+        << "\n";
+
+    PurchaseRecord q12Second =
+        q12Acq.purchase("Q12-B1", 1);
+
+    std::cout
+        << "Purchase Q12-B1 x1: "
+        << (q12Second.approved ? "APPROVED" : "REJECTED")
+        << "\n";
+
+    std::cout
+        << "Vendor used: "
+        << q12Second.vendor
+        << "\n";
+
+    // ---------------------------------------------------------
+    // Different titles can have different cheapest vendors.
+    // ---------------------------------------------------------
+
+    q12Acq.addVendor(
+        "Q12-B2",
+        "Book Supplier",
+        Money::of(800));
+
+    q12Acq.addVendor(
+        "Q12-B2",
+        "Academic Supplier",
+        Money::of(750));
+
+    q12Cheapest =
+        q12Acq.cheapestVendor("Q12-B2");
+
+    std::cout
+        << "\nQ12-B2 cheapest vendor: "
+        << q12Cheapest
+        << "\n";
+
+    // ---------------------------------------------------------
+    // Batch purchases also use the cheapest registered vendor.
+    // ---------------------------------------------------------
+
+    auto q12Batch =
+        q12Acq.processBatch({
+            {"Default", "Q12-B1", 1},
+            {"Default", "Q12-B2", 1}
+        });
+
+    std::cout
+        << "\nQ12 batch results:\n";
+
+    for (const auto& result : q12Batch) {
+        std::cout
+            << "  "
+            << result.resourceId
+            << " x"
+            << result.quantity
+            << ": "
+            << (result.approved
+                    ? "APPROVED"
+                    : "REJECTED");
+
+        if (result.approved) {
+            std::cout
+                << ", vendor = "
+                << result.vendor
+                << ", cost = "
+                << result.cost;
+        } else {
+            std::cout
+                << " ("
+                << result.reason
+                << ")";
+        }
+
+        std::cout << "\n";
+    }
+
+    // ---------------------------------------------------------
+    // Vendor information is preserved in order history.
+    // ---------------------------------------------------------
+
+    std::cout
+        << "\nQ12 order history:\n";
+
+    q12Acq.printReport(std::cout);
+
+    std::cout
+        << "\nQ12 final holdings:\n";
+
+    std::cout
+        << "  Q12-B1: "
+        << q12Catalog.holdings("Q12-B1")
+        << " copies\n";
+
+    std::cout
+        << "  Q12-B2: "
+        << q12Catalog.holdings("Q12-B2")
+        << " copies\n";
     return 0;
 }
