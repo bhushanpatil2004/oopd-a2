@@ -273,3 +273,14 @@ Tests verify:
 11. `NotFoundError` for an unknown order number.
 12. Preservation of the original purchase record and creation of a
     separate cancellation record.
+
+## Q9 — Department Budgets
+
+### Design
+Each department has its own `Budget` object containing its total budget,
+category quotas, title limits, spending, and title usage.
+
+`Department` is represented as:
+
+```cpp
+using Department = std::string;

@@ -232,9 +232,9 @@ int main() {
     std::cout << "Can purchase B003 before any "
                  "Book purchase? "
               << (budget.checkTitle(
-                      ResourceCategory::Book,
-                      "B003")
-                      .empty()
+                          ResourceCategory::Book,
+                          "B003")
+                          .empty()
                       ? "yes"
                       : "no")
               << "\n";
@@ -286,18 +286,18 @@ int main() {
     // =========================================================
 
     acq.processBatch({
-        {"B001", 4},
-        {"B002", 4},
-        {"B001", 1},
-        {"J001", 6},
-        {"R001", 20},
-        {"R002", 25},
-        {"R002", 15},
-        {"R002", 5},
-        {"E001", 5},
-        {"A001", 3},
-        {"T001", 1},
-        {"X999", 1}
+        {"Default", "B001", 4},
+        {"Default", "B002", 4},
+        {"Default", "B001", 1},
+        {"Default", "J001", 6},
+        {"Default", "R001", 20},
+        {"Default", "R002", 25},
+        {"Default", "R002", 15},
+        {"Default", "R002", 5},
+        {"Default", "E001", 5},
+        {"Default", "A001", 3},
+        {"Default", "T001", 1},
+        {"Default", "X999", 1}
     });
 
     std::cout << "\n=== Acquisition report ===\n";
@@ -524,6 +524,171 @@ int main() {
     std::cout << "  B003: "
               << catalog.holdings("B003")
               << " copies\n";
+
+    // =========================================================
+    // Q9 — Department budgets
+    // =========================================================
+
+    std::cout << "\n=== Q9 Department Budgets ===\n";
+
+    Budget csBudget(Money::of(3000));
+
+    csBudget.setQuota(
+        ResourceCategory::Book,
+        {5, Money::of(1500)});
+
+    csBudget.setTitleLimit(
+        ResourceCategory::Book,
+        2);
+
+    Budget physicsBudget(Money::of(2000));
+
+    physicsBudget.setQuota(
+        ResourceCategory::Book,
+        {2, Money::of(500)});
+
+    physicsBudget.setTitleLimit(
+        ResourceCategory::Book,
+        1);
+
+    AcquisitionManager departmentAcq(
+        catalog,
+        budget,
+        5,
+        10);
+
+    departmentAcq.addDepartment(
+        "Computer Science",
+        csBudget);
+
+    departmentAcq.addDepartment(
+        "Physics",
+        physicsBudget);
+
+    std::cout
+        << "Computer Science budget: "
+        << csBudget.total()
+        << "\n";
+
+    std::cout
+        << "Physics budget: "
+        << physicsBudget.total()
+        << "\n";
+
+    auto departmentResults =
+        departmentAcq.processBatch({
+            {"Computer Science", "B001", 2},
+            {"Physics", "B001", 1},
+            {"Physics", "B002", 1},
+            {"Physics", "B003", 1}
+        });
+
+    std::cout << "Department purchase results:\n";
+
+    for (const auto& result : departmentResults) {
+        std::cout
+            << "  "
+            << result.department
+            << " -> "
+            << result.resourceId
+            << " x"
+            << result.quantity
+            << ": "
+            << (result.approved ? "APPROVED" : "REJECTED");
+
+        if (!result.approved) {
+            std::cout
+                << " (" << result.reason << ")";
+        }
+
+        std::cout << "\n";
+    }
+
+    std::cout
+        << "Computer Science spent: "
+        << csBudget.spent()
+        << "\n";
+
+    std::cout
+        << "Physics spent: "
+        << physicsBudget.spent()
+        << "\n";
+
+    std::cout
+        << "Computer Science Book titles used: "
+        << csBudget.titlesUsed(ResourceCategory::Book)
+        << " / 2\n";
+
+    std::cout
+        << "Physics Book titles used: "
+        << physicsBudget.titlesUsed(ResourceCategory::Book)
+        << " / 1\n";
+
+    std::cout
+        << "B001 holdings after Q9: "
+        << catalog.holdings("B001")
+        << " copies\n";
+
+    std::string departmentReason;
+
+    std::cout
+        << "Can Physics buy another B001? "
+        << (departmentAcq.canPurchase(
+                "Physics",
+                "B001",
+                1,
+                &departmentReason)
+                ? "yes"
+                : "no")
+        << "\n";
+
+    std::cout
+        << "Unknown department check: "
+        << (departmentAcq.canPurchase(
+                "Mathematics",
+                "B001",
+                1,
+                &departmentReason)
+                ? "yes"
+                : "no")
+        << " ("
+        << departmentReason
+        << ")\n";
+
+    std::string cancellationReason;
+
+    try {
+    PurchaseRecord departmentOrder =
+        departmentAcq.purchase(
+            "Computer Science",
+            "B002",
+            1);
+
+    std::cout
+        << "Computer Science order #"
+        << departmentOrder.orderNo
+        << " purchased B002.\n";
+
+    departmentAcq.cancel(
+        departmentOrder.orderNo);
+
+    std::cout
+        << "After cancelling that order, Computer Science spent: "
+        << csBudget.spent()
+        << "\n";
+    } catch (const std::exception& ex) {
+    cancellationReason = ex.what();
+
+    std::cout
+        << "Expected Computer Science rejection: "
+        << cancellationReason
+        << "\n";
+}
+
+    std::cout
+        << "Q9 department-aware report:\n";
+
+    departmentAcq.printReport(std::cout);
 
     return 0;
 }
