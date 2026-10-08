@@ -33,7 +33,7 @@ void AcquisitionManager::setTaxRates(int printTaxPercent,
 }
 
 Money AcquisitionManager::purchaseCost(const Resource* r,
-                                        int quantity) const {
+                                       int quantity) const {
     Money cost = r->costFor(quantity);
 
     if (quantity >= 10 &&
@@ -47,7 +47,7 @@ Money AcquisitionManager::purchaseCost(const Resource* r,
 }
 
 Money AcquisitionManager::taxFor(const Resource* r,
-                                  Money preTaxCost) const {
+                                 Money preTaxCost) const {
     if (!r) {
         return Money{};
     }
@@ -81,8 +81,8 @@ Money AcquisitionManager::quote(const std::string& id,
 }
 
 bool AcquisitionManager::canPurchase(const std::string& id,
-                                     int quantity,
-                                     std::string* reason) const {
+                                      int quantity,
+                                      std::string* reason) const {
     std::string why;
 
     const Resource* r = catalog_.find(id);
@@ -135,7 +135,9 @@ PurchaseRecord& AcquisitionManager::record(const Resource* r,
         tax,
         cost,
         approved,
-        std::move(reason)});
+        std::move(reason),
+        false
+    });
 
     return history_.back();
 }
@@ -143,6 +145,7 @@ PurchaseRecord& AcquisitionManager::record(const Resource* r,
 const PurchaseRecord& AcquisitionManager::purchase(
     const std::string& id,
     int quantity) {
+
     const Resource& r = catalog_.get(id);
 
     if (quantity <= 0) {
@@ -208,6 +211,7 @@ const PurchaseRecord& AcquisitionManager::purchase(
 
 std::vector<PurchaseRecord> AcquisitionManager::processBatch(
     const std::vector<PurchaseRequest>& reqs) {
+
     std::vector<PurchaseRecord> results;
     results.reserve(reqs.size());
 
@@ -289,11 +293,149 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
     return results;
 }
 
+/*
+ * Q8:
+ * Returns true if another approved purchase of the same resource is
+ * still active. The order being cancelled is ignored.
+ */
+bool AcquisitionManager::hasActivePurchase(
+    const std::string& resourceId,
+    int excludedOrderNo) const {
+
+    for (const auto& rec : history_) {
+        if (rec.cancellation) {
+            continue;
+        }
+
+        if (!rec.approved) {
+            continue;
+        }
+
+        if (rec.orderNo == excludedOrderNo) {
+            continue;
+        }
+
+        if (cancelledOrders_.find(rec.orderNo) !=
+            cancelledOrders_.end()) {
+            continue;
+        }
+
+        if (rec.resourceId == resourceId) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/*
+ * Q8:
+ * Cancel an approved order.
+ *
+ * The original purchase record remains in history.
+ * A separate cancellation record is appended.
+ */
+const PurchaseRecord& AcquisitionManager::cancel(int orderNo) {
+
+    PurchaseRecord* original = nullptr;
+
+    for (auto& rec : history_) {
+        if (rec.orderNo == orderNo) {
+            original = &rec;
+            break;
+        }
+    }
+
+    if (!original) {
+        throw NotFoundError(std::to_string(orderNo));
+    }
+
+    if (original->cancellation) {
+        throw std::invalid_argument(
+            "cannot cancel a cancellation record");
+    }
+
+    if (!original->approved) {
+        throw std::invalid_argument(
+            "cannot cancel a rejected order");
+    }
+
+    if (cancelledOrders_.find(orderNo) !=
+        cancelledOrders_.end()) {
+        throw std::invalid_argument(
+            "order already cancelled");
+    }
+
+    // Check before changing any state.
+    if (catalog_.holdings(original->resourceId) <
+        original->quantity) {
+        throw std::invalid_argument(
+            "cannot cancel order: insufficient holdings");
+    }
+
+    /*
+     * Refund exactly the post-tax amount that was originally charged.
+     * This restores:
+     *   - overall budget usage
+     *   - category unit usage
+     *   - category spending usage
+     */
+    budget_.refund(
+        original->category,
+        original->quantity,
+        original->cost);
+
+    // Reduce catalog holdings.
+    catalog_.addHoldings(
+        original->resourceId,
+        -original->quantity);
+
+    /*
+     * A title slot is released only when no other active purchase
+     * still uses this title.
+     */
+    if (!hasActivePurchase(
+            original->resourceId,
+            original->orderNo)) {
+
+        budget_.releaseTitle(
+            original->category,
+            original->resourceId);
+    }
+
+    // Mark the original order as cancelled.
+    cancelledOrders_.insert(orderNo);
+
+    /*
+     * Keep the original record unchanged and add a separate
+     * cancellation record.
+     */
+    history_.push_back(PurchaseRecord{
+        nextOrderNo_++,
+        original->resourceId,
+        original->title,
+        original->category,
+        original->quantity,
+        Money{},
+        Money{},
+        Money{},
+        true,
+        "cancelled order #" + std::to_string(orderNo),
+        true
+    });
+
+    return history_.back();
+}
+
 Money AcquisitionManager::totalSpent() const {
     Money sum;
 
     for (const auto& rec : history_) {
-        if (rec.approved) {
+        if (rec.approved &&
+            !rec.cancellation &&
+            cancelledOrders_.find(rec.orderNo) ==
+                cancelledOrders_.end()) {
+
             sum += rec.cost;
         }
     }
@@ -310,10 +452,16 @@ void AcquisitionManager::printReport(std::ostream& os) const {
        << " orders)\n";
 
     for (const auto& rec : history_) {
+
+        const char* status =
+            rec.cancellation
+                ? "CANCELLED"
+                : (rec.approved ? "APPROVED" : "REJECTED");
+
         os << "  #" << std::setw(3) << std::left
            << rec.orderNo
            << " "
-           << (rec.approved ? "APPROVED" : "REJECTED")
+           << status
            << "  "
            << std::setw(6) << rec.resourceId
            << " x"
@@ -331,14 +479,25 @@ void AcquisitionManager::printReport(std::ostream& os) const {
            << "  "
            << rec.title;
 
-        if (!rec.approved) {
+        if (!rec.approved || rec.cancellation) {
             os << "\n        reason: "
                << rec.reason;
         }
 
         os << "\n";
 
-        if (rec.approved) {
+        /*
+         * Cancelled original purchases must no longer contribute
+         * to the active totals.
+         *
+         * Cancellation records themselves have zero cost and are
+         * also excluded explicitly.
+         */
+        if (rec.approved &&
+            !rec.cancellation &&
+            cancelledOrders_.find(rec.orderNo) ==
+                cancelledOrders_.end()) {
+
             totalPreTax += rec.preTaxCost;
             totalTax += rec.tax;
             totalPostTax += rec.cost;

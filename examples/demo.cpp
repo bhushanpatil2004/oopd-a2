@@ -374,7 +374,7 @@ int main() {
     std::cout
         << "After first B001 purchase: "
         << repeatTitleBudget.titlesUsed(
-            ResourceCategory::Book)
+               ResourceCategory::Book)
         << " / 2 titles used\n";
 
     try {
@@ -382,8 +382,10 @@ int main() {
 
         std::cout
             << "B001 approved again: existing title "
-            "does not consume another title slot.\n";
+               "does not consume another title slot.\n";
+
     } catch (const std::exception& e) {
+
         std::cout
             << "Unexpected rejection: "
             << e.what()
@@ -393,8 +395,135 @@ int main() {
     std::cout
         << "After second B001 purchase: "
         << repeatTitleBudget.titlesUsed(
-            ResourceCategory::Book)
+               ResourceCategory::Book)
         << " / 2 titles used\n";
-        return 0;
-        
+
+    // =========================================================
+    // Q8 — Cancellation
+    // =========================================================
+
+    std::cout << "\n=== Q8 Cancellation ===\n";
+
+    // Use a fresh budget so the cancellation effects are easy to see.
+    Budget cancelBudget(Money::of(5000));
+
+    cancelBudget.setQuota(
+        ResourceCategory::Book,
+        {10, Money::of(5000)});
+
+    cancelBudget.setTitleLimit(
+        ResourceCategory::Book,
+        2);
+
+    AcquisitionManager cancelAcq(
+        catalog,
+        cancelBudget,
+        10,
+        0);
+
+    PurchaseRecord q8First =
+        cancelAcq.purchase("B001", 2);
+
+    PurchaseRecord q8Second =
+        cancelAcq.purchase("B001", 1);
+
+    PurchaseRecord q8Other =
+        cancelAcq.purchase("B002", 1);
+
+    std::cout << "Active B002 order: #"
+              << q8Other.orderNo << "\n";
+
+    std::cout << "Before cancellation:\n";
+
+    std::cout << "  Budget spent: "
+              << cancelBudget.spent()
+              << "\n";
+
+    std::cout << "  Book units used: "
+              << cancelBudget.usageFor(
+                     ResourceCategory::Book).units
+              << "\n";
+
+    std::cout << "  B001 holdings: "
+              << catalog.holdings("B001")
+              << " copies\n";
+
+    std::cout << "  Book titles used: "
+              << cancelBudget.titlesUsed(
+                     ResourceCategory::Book)
+              << " / 2\n";
+
+    cancelAcq.cancel(q8First.orderNo);
+
+    std::cout << "\nAfter cancelling order #"
+              << q8First.orderNo
+              << ":\n";
+
+    std::cout << "  Budget spent: "
+              << cancelBudget.spent()
+              << "\n";
+
+    std::cout << "  Book units used: "
+              << cancelBudget.usageFor(
+                     ResourceCategory::Book).units
+              << "\n";
+
+    std::cout << "  B001 holdings: "
+              << catalog.holdings("B001")
+              << " copies\n";
+
+    std::cout << "  Book titles used: "
+              << cancelBudget.titlesUsed(
+                     ResourceCategory::Book)
+              << " / 2\n";
+
+    std::cout << "\nCancelling the second B001 order...\n";
+
+    cancelAcq.cancel(q8Second.orderNo);
+
+    std::cout << "After cancelling the final active B001 order:\n";
+
+    std::cout << "  Budget spent: "
+              << cancelBudget.spent()
+              << "\n";
+
+    std::cout << "  B001 holdings: "
+              << catalog.holdings("B001")
+              << " copies\n";
+
+    std::cout << "  Book titles used: "
+              << cancelBudget.titlesUsed(
+                     ResourceCategory::Book)
+              << " / 2\n";
+
+    // The B001 title slot is now free, so B003 can be purchased.
+    cancelAcq.purchase("B003", 1);
+
+    std::cout
+        << "B003 approved after B001 title slot was released.\n";
+
+    std::cout << "  Book titles used: "
+              << cancelBudget.titlesUsed(
+                     ResourceCategory::Book)
+              << " / 2\n";
+
+    std::cout << "\nQ8 cancellation history:\n";
+
+    cancelAcq.printReport(std::cout);
+
+    std::cout << "\nQ8 final holdings:\n";
+
+    std::cout << "  B001: "
+              << catalog.holdings("B001")
+              << " copies\n";
+
+    std::cout << "  B002: "
+              << catalog.holdings("B002")
+              << " copies\n";
+
+    std::cout << "  B003: "
+              << catalog.holdings("B003")
+              << " copies\n";
+
+    return 0;
 }

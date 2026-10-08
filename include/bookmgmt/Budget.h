@@ -71,6 +71,13 @@ public:
     void commitTitle(ResourceCategory c,
                      const std::string& resourceId);
 
+    // Q8: refund the budget and category usage for an approved order.
+    void refund(ResourceCategory c, int units, Money cost);
+
+    // Q8: release a title from the Q7 title tracking.
+    void releaseTitle(ResourceCategory c,
+                      const std::string& resourceId);
+
     void print(std::ostream& os) const;
 
 private:

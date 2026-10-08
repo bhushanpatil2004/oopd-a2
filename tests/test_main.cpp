@@ -1,5 +1,4 @@
 // Minimal self-contained test runner (no external framework needed).
-
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -46,12 +45,16 @@ static void testMoney() {
 
 static void testResourcesAndCost() {
     Book b("B1", "T", {"A", "B", "C"}, "isbn", "P", 2020, Money::of(100));
+
     CHECK(b.category() == ResourceCategory::Book);
     CHECK(!b.isDigital());
     CHECK(b.costFor(3) == Money::of(300));
     CHECK_THROWS(b.costFor(0), std::invalid_argument);
     CHECK(joinAuthors(b.authors()) == "A, B and C");
-    Journal j("J1","ACM Computing Surveys","0360-0300",4,"ACM",2026,Money::of(500),3);
+
+    Journal j("J1", "ACM Computing Surveys", "0360-0300", 4,
+              "ACM", 2026, Money::of(500), 3);
+
     CHECK(j.category() == ResourceCategory::Journal);
     CHECK(!j.isDigital());
     CHECK(j.issn() == "0360-0300");
@@ -64,6 +67,7 @@ static void testResourcesAndCost() {
     // Default subscription length is one year.
     Journal oneYear("J2", "Nature", "0028-0836", 52,
                     "Springer", 2026, Money::of(800));
+
     CHECK(oneYear.subscriptionYears() == 1);
     CHECK(oneYear.costFor(2) == Money::of(1600));
 
@@ -100,7 +104,7 @@ static void testResourcesAndCost() {
     // Pricing must remain inherited from ElectronicResource.
     CHECK(ebook.costFor(4) == Money::of(1700));
 
-        // Q4 — Hardcover books cost 20% more than listed price.
+    // Q4 — Hardcover books cost 20% more than listed price.
     Book paperback(
         "B-Q4-P",
         "Q4 Paperback",
@@ -127,7 +131,6 @@ static void testResourcesAndCost() {
 
     CHECK(paperback.costFor(1) == Money::of(450));
     CHECK(hardcover.costFor(1) == Money::of(540));
-
     CHECK(paperback.costFor(2) == Money::of(900));
     CHECK(hardcover.costFor(2) == Money::of(1080));
 
@@ -158,10 +161,8 @@ static void testResourcesAndCost() {
 
     CHECK(q5Paperback.costFor(9) == Money::of(900));
     CHECK(q5Paperback.costFor(10) == Money::of(1000));
-
     CHECK(q5Hardcover.costFor(9) == Money::of(1080));
     CHECK(q5Hardcover.costFor(10) == Money::of(1200));
-
 
     // Q5 — Bulk discount for Journal
     Journal q5Journal(
@@ -177,7 +178,6 @@ static void testResourcesAndCost() {
 
     CHECK(q5Journal.costFor(9) == Money::of(900));
     CHECK(q5Journal.costFor(10) == Money::of(1000));
-
 
     // Q5 — Electronic resource: 50-seat boundary
     ElectronicResource q5Electronic(
@@ -195,91 +195,204 @@ static void testResourcesAndCost() {
     CHECK(q5Electronic.costFor(51) == Money::of(5550));
     CHECK(q5Electronic.costFor(60) == Money::of(6000));
 
-    ElectronicResource e("R1", "DB", "P", 2026, Money::of(10), "url",
-                         LicenseModel::AnnualSubscription, Money::of(100));
+    ElectronicResource e(
+        "R1",
+        "DB",
+        "P",
+        2026,
+        Money::of(10),
+        "url",
+        LicenseModel::AnnualSubscription,
+        Money::of(100));
+
     CHECK(e.isDigital());
     CHECK(e.costFor(5) == Money::of(150));
-
     CHECK(e.category() == ResourceCategory::ElectronicResource);
 
     // Polymorphism through a base-class reference
     const Resource& journalResource = j;
+
     CHECK(journalResource.category() == ResourceCategory::Journal);
     CHECK(journalResource.costFor(2) == Money::of(3000));
 
     const ElectronicResource& electronic = ebook;
+
     CHECK(electronic.costFor(4) == Money::of(1700));
     CHECK(electronic.category() == ResourceCategory::EBook);
+
     const Resource& r = e;
+
     CHECK(r.costFor(1) == Money::of(110));
+
     std::ostringstream os;
     os << r;
+
     CHECK(os.str().find("platform fee: 100.00") != std::string::npos);
 
-    CHECK_THROWS(Book("", "T", {}, "", "", 2000, Money::of(1)), std::invalid_argument);
-    CHECK_THROWS(Book("B", "T", {}, "", "", 2000, Money::fromMinor(-1)),
-                 std::invalid_argument);
+    CHECK_THROWS(
+        Book("", "T", {}, "", "", 2000, Money::of(1)),
+        std::invalid_argument);
+
+    CHECK_THROWS(
+        Book("B", "T", {}, "", "", 2000, Money::fromMinor(-1)),
+        std::invalid_argument);
 }
 
 static void testCatalog() {
     Catalog c;
-    c.emplace<Book>("B1", "Clean Code", std::vector<std::string>{"M"}, "i", "P", 2008,
-                    Money::of(1));
-    c.emplace<Book>("B2", "Clean Architecture", std::vector<std::string>{"M"}, "i", "P",
-                    2017, Money::of(1));
-    c.emplace<ElectronicResource>("R1", "ACM Digital Library", "ACM", 2026, Money::of(1),
-                                  "url");
+
+    c.emplace<Book>(
+        "B1",
+        "Clean Code",
+        std::vector<std::string>{"M"},
+        "i",
+        "P",
+        2008,
+        Money::of(1));
+
+    c.emplace<Book>(
+        "B2",
+        "Clean Architecture",
+        std::vector<std::string>{"M"},
+        "i",
+        "P",
+        2017,
+        Money::of(1));
+
+    c.emplace<ElectronicResource>(
+        "R1",
+        "ACM Digital Library",
+        "ACM",
+        2026,
+        Money::of(1),
+        "url");
 
     CHECK(c.size() == 3);
     CHECK(c.contains("B1"));
     CHECK(c.find("nope") == nullptr);
     CHECK_THROWS(c.get("nope"), NotFoundError);
-    CHECK_THROWS(c.emplace<Book>("B1", "dup", std::vector<std::string>{}, "", "", 1,
-                                 Money::of(1)),
-                 DuplicateIdError);
+
+    CHECK_THROWS(
+        c.emplace<Book>(
+            "B1",
+            "dup",
+            std::vector<std::string>{},
+            "",
+            "",
+            1,
+            Money::of(1)),
+        DuplicateIdError);
 
     CHECK(c.searchTitle("clean").size() == 2);
     CHECK(c.byCategory(ResourceCategory::ElectronicResource).size() == 1);
-    CHECK(c.where([](const Resource& r) { return r.isDigital(); }).size() == 1);
+    CHECK(c.where([](const Resource& r) {
+        return r.isDigital();
+    }).size() == 1);
 
     CHECK(c.holdings("B1") == 0);
+
     c.addHoldings("B1", 3);
+
     CHECK(c.holdings("B1") == 3);
     CHECK_THROWS(c.addHoldings("B1", -5), std::invalid_argument);
 
     c.remove("R1");
+
     CHECK(c.size() == 2);
     CHECK_THROWS(c.remove("R1"), NotFoundError);
 }
 
 static void testBudget() {
     Budget b(Money::of(1000));
-    b.setQuota(ResourceCategory::Book, {5, Money::of(400)});
-    b.setQuota(ResourceCategory::Journal, {4, Money::of(3000)});
-    CHECK(b.check(ResourceCategory::Journal, 3, Money::of(800)).empty());
 
-    CHECK(!b.check(ResourceCategory::Journal, 5, Money::of(100)).empty());
+    b.setQuota(
+        ResourceCategory::Book,
+        {5, Money::of(400)});
 
-    CHECK(!b.check(ResourceCategory::Journal, 1, Money::of(3001)).empty());
+    b.setQuota(
+        ResourceCategory::Journal,
+        {4, Money::of(3000)});
 
-    CHECK(b.check(ResourceCategory::Book, 2, Money::of(200)).empty());
-    CHECK(!b.check(ResourceCategory::Book, 6, Money::of(10)).empty());   // units
-    CHECK(!b.check(ResourceCategory::Book, 1, Money::of(401)).empty());  // spend
-    CHECK(!b.check(ResourceCategory::ElectronicResource, 1, Money::of(1001)).empty());  // overall
-    CHECK(b.check(ResourceCategory::ElectronicResource, 1, Money::of(900)).empty());    // no quota
+    CHECK(
+        b.check(
+            ResourceCategory::Journal,
+            3,
+            Money::of(800)).empty());
 
-    b.commit(ResourceCategory::Book, 4, Money::of(300));
+    CHECK(
+        !b.check(
+            ResourceCategory::Journal,
+            5,
+            Money::of(100)).empty());
+
+    CHECK(
+        !b.check(
+            ResourceCategory::Journal,
+            1,
+            Money::of(3001)).empty());
+
+    CHECK(
+        b.check(
+            ResourceCategory::Book,
+            2,
+            Money::of(200)).empty());
+
+    CHECK(
+        !b.check(
+            ResourceCategory::Book,
+            6,
+            Money::of(10)).empty());
+
+    CHECK(
+        !b.check(
+            ResourceCategory::Book,
+            1,
+            Money::of(401)).empty());
+
+    CHECK(
+        !b.check(
+            ResourceCategory::ElectronicResource,
+            1,
+            Money::of(1001)).empty());
+
+    CHECK(
+        b.check(
+            ResourceCategory::ElectronicResource,
+            1,
+            Money::of(900)).empty());
+
+    b.commit(
+        ResourceCategory::Book,
+        4,
+        Money::of(300));
+
     CHECK(b.spent() == Money::of(300));
     CHECK(*b.unitsRemaining(ResourceCategory::Book) == 1);
     CHECK(*b.spendRemaining(ResourceCategory::Book) == Money::of(100));
     CHECK(!b.unitsRemaining(ResourceCategory::ElectronicResource).has_value());
 
-    CHECK_THROWS(b.commit(ResourceCategory::Book, 2, Money::of(10)), QuotaExceededError);
-    CHECK_THROWS(b.commit(ResourceCategory::ElectronicResource, 1, Money::of(800)),
-                 BudgetExceededError);
-    CHECK_THROWS(b.commit(ResourceCategory::ElectronicResource, 0, Money::of(1)),
-                 std::invalid_argument);
-    CHECK(b.spent() == Money::of(300));  // failed commits changed nothing
+    CHECK_THROWS(
+        b.commit(
+            ResourceCategory::Book,
+            2,
+            Money::of(10)),
+        QuotaExceededError);
+
+    CHECK_THROWS(
+        b.commit(
+            ResourceCategory::ElectronicResource,
+            1,
+            Money::of(800)),
+        BudgetExceededError);
+
+    CHECK_THROWS(
+        b.commit(
+            ResourceCategory::ElectronicResource,
+            0,
+            Money::of(1)),
+        std::invalid_argument);
+
+    CHECK(b.spent() == Money::of(300));
 
     Budget ebookBudget(Money::of(25000));
 
@@ -287,22 +400,25 @@ static void testBudget() {
         ResourceCategory::EBook,
         {5, Money::of(2500)});
 
-    CHECK(ebookBudget.check(
-        ResourceCategory::EBook,
-        3,
-        Money::of(1700)).empty());
+    CHECK(
+        ebookBudget.check(
+            ResourceCategory::EBook,
+            3,
+            Money::of(1700)).empty());
 
-    CHECK(!ebookBudget.check(
-        ResourceCategory::EBook,
-        6,
-        Money::of(1700)).empty());
+    CHECK(
+        !ebookBudget.check(
+            ResourceCategory::EBook,
+            6,
+            Money::of(1700)).empty());
 
-    CHECK(!ebookBudget.check(
-        ResourceCategory::EBook,
-        2,
-        Money::of(2600)).empty());
+    CHECK(
+        !ebookBudget.check(
+            ResourceCategory::EBook,
+            2,
+            Money::of(2600)).empty());
 
-        // Q3: AudioBook
+    // Q3: AudioBook
     AudioBook audiobook(
         "A1",
         "C++ Audio Guide",
@@ -322,6 +438,7 @@ static void testBudget() {
     CHECK(audiobook.costFor(4) == Money::of(1100));
 
     const ElectronicResource& audioElectronic = audiobook;
+
     CHECK(audioElectronic.costFor(4) == Money::of(1100));
 
     CHECK_THROWS(
@@ -354,47 +471,91 @@ static void testBudget() {
     CHECK(thesis.costFor(5) == Money{});
 
     Resource& thesisResource = thesis;
+
     CHECK(thesisResource.category() == ResourceCategory::Thesis);
     CHECK(thesisResource.costFor(2) == Money{});
-
 }
 
 static void testAcquisition() {
     Catalog c;
-    c.emplace<Book>("B1", "Book", std::vector<std::string>{"A"}, "i", "P", 2020,
-                    Money::of(100));
-    c.emplace<ElectronicResource>("R1", "DB", "P", 2026, Money::of(10), "url",
-                                  LicenseModel::AnnualSubscription, Money::of(50));
+
+    c.emplace<Book>(
+        "B1",
+        "Book",
+        std::vector<std::string>{"A"},
+        "i",
+        "P",
+        2020,
+        Money::of(100));
+
+    c.emplace<ElectronicResource>(
+        "R1",
+        "DB",
+        "P",
+        2026,
+        Money::of(10),
+        "url",
+        LicenseModel::AnnualSubscription,
+        Money::of(50));
+
     Budget b(Money::of(500));
-    b.setQuota(ResourceCategory::Book, {3, Money::of(1000)});
+
+    b.setQuota(
+        ResourceCategory::Book,
+        {3, Money::of(1000)});
+
     AcquisitionManager acq(c, b);
 
     CHECK(acq.quote("R1", 5) == Money::of(100));
+
     std::string why;
+
     CHECK(acq.canPurchase("B1", 3, &why) && why.empty());
     CHECK(!acq.canPurchase("B1", 4, &why) && !why.empty());
     CHECK(!acq.canPurchase("nope", 1, &why));
 
     const auto& rec = acq.purchase("B1", 2);
-    CHECK(rec.approved && rec.cost == Money::of(200) && rec.orderNo == 1);
+
+    CHECK(
+        rec.approved &&
+        rec.cost == Money::of(200) &&
+        rec.orderNo == 1);
+
     CHECK(c.holdings("B1") == 2);
 
-    CHECK_THROWS(acq.purchase("B1", 2), QuotaExceededError);
-    CHECK_THROWS(acq.purchase("nope", 1), NotFoundError);
-    CHECK(acq.history().size() == 1);  // exceptions don't record
+    CHECK_THROWS(
+        acq.purchase("B1", 2),
+        QuotaExceededError);
 
-    auto res = acq.processBatch({{"R1", 10}, {"R1", 100}, {"B1", 1}, {"zzz", 1}, {"B1", 0}});
+    CHECK_THROWS(
+        acq.purchase("nope", 1),
+        NotFoundError);
+
+    CHECK(acq.history().size() == 1);
+
+    auto res = acq.processBatch({
+        {"R1", 10},
+        {"R1", 100},
+        {"B1", 1},
+        {"zzz", 1},
+        {"B1", 0}
+    });
+
     CHECK(res.size() == 5);
     CHECK(res[0].approved && res[0].cost == Money::of(150));
-    CHECK(!res[1].approved);  // 1050 > remaining 150
+    CHECK(!res[1].approved);
     CHECK(res[2].approved);
-    CHECK(!res[3].approved && res[3].reason.find("not found") != std::string::npos);
+    CHECK(
+        !res[3].approved &&
+        res[3].reason.find("not found") != std::string::npos);
     CHECK(!res[4].approved);
+
     CHECK(acq.totalSpent() == Money::of(450));
     CHECK(b.spent() == acq.totalSpent());
     CHECK(c.holdings("R1") == 10 && c.holdings("B1") == 3);
     CHECK(acq.history().size() == 6);
 }
+
 static void testTaxes() {
     Catalog c;
 
@@ -429,26 +590,23 @@ static void testTaxes() {
 
     AcquisitionManager acq(c, b, 10, 20);
 
-    // Configurable tax rates.
     CHECK(acq.printTaxPercent() == 10);
     CHECK(acq.electronicTaxPercent() == 20);
 
-    // Quotes include tax.
     CHECK(acq.quote("Q6-B", 1) == Money::of(110));
     CHECK(acq.quote("Q6-E", 1) == Money::of(120));
 
-    // Purchase record stores pre-tax, tax and post-tax amounts.
     const auto& bookRecord = acq.purchase("Q6-B", 1);
 
     CHECK(bookRecord.preTaxCost == Money::of(100));
     CHECK(bookRecord.tax == Money::of(10));
     CHECK(bookRecord.cost == Money::of(110));
 
-    // Budget stores the post-tax amount.
     CHECK(b.spent() == Money::of(110));
-    CHECK(b.usageFor(ResourceCategory::Book).spent == Money::of(110));
+    CHECK(
+        b.usageFor(ResourceCategory::Book).spent ==
+        Money::of(110));
 
-    // Tax rates can be changed.
     acq.setTaxRates(5, 15);
 
     CHECK(acq.printTaxPercent() == 5);
@@ -457,7 +615,6 @@ static void testTaxes() {
     CHECK(acq.quote("Q6-B", 1) == Money::of(105));
     CHECK(acq.quote("Q6-E", 1) == Money::of(115));
 
-    // Invalid tax rates are rejected.
     CHECK_THROWS(
         acq.setTaxRates(-1, 10),
         std::invalid_argument);
@@ -481,24 +638,19 @@ static void testPostTaxQuota() {
 
     Budget b(Money::of(5000));
 
-    // Quota is deliberately below the post-tax price.
     b.setQuota(
         ResourceCategory::Book,
         {10, Money::of(105)});
 
-    // Book tax = 10%.
     AcquisitionManager acq(c, b, 10, 0);
 
-    // Pre-tax = 100, tax = 10, post-tax = 110.
     CHECK(acq.quote("Q6-Q", 1) == Money::of(110));
 
     std::string reason;
 
-    // 110 > quota of 105, so this must be rejected.
     CHECK(!acq.canPurchase("Q6-Q", 1, &reason));
     CHECK(!reason.empty());
 
-    // Budget must remain unchanged after the rejected check.
     CHECK(b.spent() == Money{});
 }
 
@@ -544,15 +696,22 @@ static void testTitleLimits() {
 
     Budget b(Money::of(5000));
 
-    // Q7: at most two different Book titles.
-    b.setTitleLimit(ResourceCategory::Book, 2);
+    b.setTitleLimit(
+        ResourceCategory::Book,
+        2);
 
-    CHECK(b.titleLimitFor(ResourceCategory::Book).has_value());
-    CHECK(*b.titleLimitFor(ResourceCategory::Book) == 2);
+    CHECK(
+        b.titleLimitFor(
+            ResourceCategory::Book).has_value());
 
-    CHECK(b.titlesUsed(ResourceCategory::Book) == 0);
+    CHECK(
+        *b.titleLimitFor(
+            ResourceCategory::Book) == 2);
 
-    // First title is allowed.
+    CHECK(
+        b.titlesUsed(
+            ResourceCategory::Book) == 0);
+
     CHECK(
         b.checkTitle(
             ResourceCategory::Book,
@@ -563,9 +722,9 @@ static void testTitleLimits() {
         "Q7-B1");
 
     CHECK(
-        b.titlesUsed(ResourceCategory::Book) == 1);
+        b.titlesUsed(
+            ResourceCategory::Book) == 1);
 
-    // Buying the same title again must not consume another title slot.
     CHECK(
         b.checkTitle(
             ResourceCategory::Book,
@@ -576,9 +735,9 @@ static void testTitleLimits() {
         "Q7-B1");
 
     CHECK(
-        b.titlesUsed(ResourceCategory::Book) == 1);
+        b.titlesUsed(
+            ResourceCategory::Book) == 1);
 
-    // Second different title is allowed.
     CHECK(
         b.checkTitle(
             ResourceCategory::Book,
@@ -589,27 +748,27 @@ static void testTitleLimits() {
         "Q7-B2");
 
     CHECK(
-        b.titlesUsed(ResourceCategory::Book) == 2);
+        b.titlesUsed(
+            ResourceCategory::Book) == 2);
 
-    // Third different title must be rejected.
     CHECK(
         !b.checkTitle(
             ResourceCategory::Book,
             "Q7-B3").empty());
 
     CHECK(
-        b.titlesUsed(ResourceCategory::Book) == 2);
+        b.titlesUsed(
+            ResourceCategory::Book) == 2);
 
-    // A category without a title limit is unrestricted.
     CHECK(
-        !b.titleLimitFor(ResourceCategory::Journal).has_value());
+        !b.titleLimitFor(
+            ResourceCategory::Journal).has_value());
 
     CHECK(
         b.checkTitle(
             ResourceCategory::Journal,
             "Q7-J1").empty());
 
-    // Zero is a valid limit: no different titles may be purchased.
     Budget zeroTitleBudget(Money::of(1000));
 
     zeroTitleBudget.setTitleLimit(
@@ -625,9 +784,10 @@ static void testTitleLimits() {
         zeroTitleBudget.titlesUsed(
             ResourceCategory::Book) == 0);
 
-    // Negative limits are invalid.
     CHECK_THROWS(
-        b.setTitleLimit(ResourceCategory::Book, -1),
+        b.setTitleLimit(
+            ResourceCategory::Book,
+            -1),
         std::invalid_argument);
 }
 
@@ -667,7 +827,6 @@ static void testAcquisitionTitleLimits() {
         ResourceCategory::Book,
         {10, Money::of(1000)});
 
-    // At most two different Book titles.
     b.setTitleLimit(
         ResourceCategory::Book,
         2);
@@ -676,7 +835,6 @@ static void testAcquisitionTitleLimits() {
 
     std::string reason;
 
-    // First title is approved.
     CHECK(
         acq.canPurchase(
             "Q7-B1",
@@ -694,8 +852,6 @@ static void testAcquisitionTitleLimits() {
         b.titlesUsed(
             ResourceCategory::Book) == 1);
 
-    // Buying more copies of the same title does not
-    // consume another title slot.
     CHECK(
         acq.canPurchase(
             "Q7-B1",
@@ -713,7 +869,6 @@ static void testAcquisitionTitleLimits() {
         b.titlesUsed(
             ResourceCategory::Book) == 1);
 
-    // Second different title is approved.
     CHECK(
         acq.canPurchase(
             "Q7-B2",
@@ -731,7 +886,6 @@ static void testAcquisitionTitleLimits() {
         b.titlesUsed(
             ResourceCategory::Book) == 2);
 
-    // Third different title is rejected by the title limit.
     CHECK(
         !acq.canPurchase(
             "Q7-B3",
@@ -741,14 +895,13 @@ static void testAcquisitionTitleLimits() {
     CHECK(!reason.empty());
 
     CHECK(
-        reason.find("title") != std::string::npos);
+        reason.find("title") !=
+        std::string::npos);
 
     CHECK_THROWS(
         acq.purchase("Q7-B3", 1),
         QuotaExceededError);
 
-    // The failed title purchase must not change usage,
-    // holdings or number of recorded successful purchases.
     CHECK(
         b.titlesUsed(
             ResourceCategory::Book) == 2);
@@ -756,21 +909,18 @@ static void testAcquisitionTitleLimits() {
     CHECK(
         c.holdings("Q7-B3") == 0);
 
-    // Batch processing must also enforce the title limit.
     auto results = acq.processBatch({
         {"Q7-B3", 1},
         {"Q7-B1", 1}
     });
 
     CHECK(results.size() == 2);
-
     CHECK(!results[0].approved);
 
     CHECK(
         results[0].reason.find("title") !=
         std::string::npos);
 
-    // Existing title is still allowed.
     CHECK(results[1].approved);
 
     CHECK(
@@ -780,6 +930,240 @@ static void testAcquisitionTitleLimits() {
         b.titlesUsed(
             ResourceCategory::Book) == 2);
 }
+
+/*
+ * Q8 — Cancellation
+ */
+static void testCancellation() {
+    Catalog c;
+
+    c.emplace<Book>(
+        "Q8-B1",
+        "Cancellation Book One",
+        std::vector<std::string>{"Author One"},
+        "ISBN-Q8-1",
+        "Publisher",
+        2026,
+        Money::of(100));
+
+    c.emplace<Book>(
+        "Q8-B2",
+        "Cancellation Book Two",
+        std::vector<std::string>{"Author Two"},
+        "ISBN-Q8-2",
+        "Publisher",
+        2026,
+        Money::of(100));
+
+    c.emplace<Book>(
+        "Q8-B3",
+        "Cancellation Book Three",
+        std::vector<std::string>{"Author Three"},
+        "ISBN-Q8-3",
+        "Publisher",
+        2026,
+        Money::of(100));
+
+    c.emplace<Book>(
+        "Q8-B4",
+        "Cancellation Book Four",
+        std::vector<std::string>{"Author Four"},
+        "ISBN-Q8-4",
+        "Publisher",
+        2026,
+        Money::of(100));
+
+    Budget b(Money::of(5000));
+
+    b.setQuota(
+        ResourceCategory::Book,
+        {10, Money::of(5000)});
+
+    b.setTitleLimit(
+        ResourceCategory::Book,
+        2);
+
+    AcquisitionManager acq(c, b, 10, 0);
+
+    // Two separate purchases of the same title.
+    PurchaseRecord first =
+        acq.purchase("Q8-B1", 2);
+
+    PurchaseRecord second =
+        acq.purchase("Q8-B1", 1);
+
+    PurchaseRecord other =
+        acq.purchase("Q8-B2", 1);
+
+    CHECK(first.approved && !first.cancellation);
+    CHECK(second.approved && !second.cancellation);
+    CHECK(other.approved && !other.cancellation);
+
+    CHECK(b.spent() == Money::of(440));
+
+    CHECK(
+        b.usageFor(
+            ResourceCategory::Book).units == 4);
+
+    CHECK(
+        b.usageFor(
+            ResourceCategory::Book).spent ==
+        Money::of(440));
+
+    CHECK(c.holdings("Q8-B1") == 3);
+    CHECK(c.holdings("Q8-B2") == 1);
+
+    CHECK(
+        b.titlesUsed(
+            ResourceCategory::Book) == 2);
+
+    CHECK(acq.totalSpent() == Money::of(440));
+
+    // Cancelling one of two purchases of B1 must not release its title slot.
+    PurchaseRecord cancellation1 =
+        acq.cancel(first.orderNo);
+
+    CHECK(cancellation1.cancellation);
+    CHECK(cancellation1.approved);
+    CHECK(cancellation1.resourceId == "Q8-B1");
+    CHECK(cancellation1.quantity == 2);
+    CHECK(cancellation1.cost == Money{});
+
+    CHECK(
+        cancellation1.reason.find("cancelled order") !=
+        std::string::npos);
+
+    CHECK(b.spent() == Money::of(220));
+
+    CHECK(
+        b.usageFor(
+            ResourceCategory::Book).units == 2);
+
+    CHECK(
+        b.usageFor(
+            ResourceCategory::Book).spent ==
+        Money::of(220));
+
+    CHECK(c.holdings("Q8-B1") == 1);
+
+    CHECK(
+        b.titlesUsed(
+            ResourceCategory::Book) == 2);
+
+    CHECK(acq.totalSpent() == Money::of(220));
+    CHECK(acq.history().size() == 4);
+
+    // The original purchase remains in history.
+    CHECK(
+        acq.history()[0].orderNo ==
+        first.orderNo);
+
+    CHECK(acq.history()[0].approved);
+    CHECK(!acq.history()[0].cancellation);
+
+    // Cancelling the last active B1 purchase releases its title slot.
+    PurchaseRecord cancellation2 =
+        acq.cancel(second.orderNo);
+
+    CHECK(cancellation2.cancellation);
+
+    CHECK(b.spent() == Money::of(110));
+
+    CHECK(
+        b.usageFor(
+            ResourceCategory::Book).units == 1);
+
+    CHECK(
+        b.usageFor(
+            ResourceCategory::Book).spent ==
+        Money::of(110));
+
+    CHECK(c.holdings("Q8-B1") == 0);
+
+    CHECK(
+        b.titlesUsed(
+            ResourceCategory::Book) == 1);
+
+    CHECK(acq.totalSpent() == Money::of(110));
+
+    // B3 can now use the title slot released by B1.
+    CHECK(acq.canPurchase("Q8-B3", 1));
+
+    const auto& third =
+        acq.purchase("Q8-B3", 1);
+
+    CHECK(third.approved);
+
+    CHECK(
+        b.titlesUsed(
+            ResourceCategory::Book) == 2);
+
+    CHECK(c.holdings("Q8-B3") == 1);
+
+    // A third different active title is rejected by Q7.
+    auto rejected =
+        acq.processBatch({{"Q8-B4", 1}});
+
+    CHECK(rejected.size() == 1);
+    CHECK(!rejected[0].approved);
+    CHECK(!rejected[0].cancellation);
+
+    CHECK(
+        rejected[0].reason.find("title") !=
+        std::string::npos);
+
+    CHECK(
+        b.titlesUsed(
+            ResourceCategory::Book) == 2);
+
+    CHECK(c.holdings("Q8-B4") == 0);
+
+    // A rejected order cannot be cancelled.
+    CHECK_THROWS(
+        acq.cancel(rejected[0].orderNo),
+        std::invalid_argument);
+
+    // An already cancelled order cannot be cancelled again.
+    CHECK_THROWS(
+        acq.cancel(first.orderNo),
+        std::invalid_argument);
+
+    // A cancellation record cannot itself be cancelled.
+    CHECK_THROWS(
+        acq.cancel(cancellation1.orderNo),
+        std::invalid_argument);
+
+    // Unknown order numbers are rejected.
+    CHECK_THROWS(
+        acq.cancel(999999),
+        NotFoundError);
+
+    // Cancel the remaining active titles and verify all Book usage is refunded.
+    acq.cancel(other.orderNo);
+    acq.cancel(third.orderNo);
+
+    CHECK(b.spent() == Money{});
+
+    CHECK(
+        b.usageFor(
+            ResourceCategory::Book).units == 0);
+
+    CHECK(
+        b.usageFor(
+            ResourceCategory::Book).spent ==
+        Money{});
+
+    CHECK(
+        b.titlesUsed(
+            ResourceCategory::Book) == 0);
+
+    CHECK(c.holdings("Q8-B1") == 0);
+    CHECK(c.holdings("Q8-B2") == 0);
+    CHECK(c.holdings("Q8-B3") == 0);
+
+    CHECK(acq.totalSpent() == Money{});
+}
+
 int main() {
     testMoney();
     testResourcesAndCost();
@@ -790,6 +1174,7 @@ int main() {
     testPostTaxQuota();
     testTitleLimits();
     testAcquisitionTitleLimits();
+    testCancellation();
 
     std::cout << (g_checks - g_failures)
               << "/" << g_checks

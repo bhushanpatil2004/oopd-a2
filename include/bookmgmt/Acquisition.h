@@ -4,6 +4,7 @@
 // order history.
 
 #include <iosfwd>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -28,6 +29,9 @@ struct PurchaseRecord {
     Money cost;  // final cost after tax
     bool approved;
     std::string reason;  // why it was rejected; empty if approved
+
+    // Q8: true only for a separate cancellation record.
+    bool cancellation = false;
 };
 
 class AcquisitionManager {
@@ -59,6 +63,10 @@ public:
     std::vector<PurchaseRecord> processBatch(
         const std::vector<PurchaseRequest>& reqs);
 
+    // Q8: cancels an approved order, refunds its budget/quota usage,
+    // reduces holdings and adds a separate cancellation record.
+    const PurchaseRecord& cancel(int orderNo);
+
     const std::vector<PurchaseRecord>& history() const { return history_; }
     Money totalSpent() const;
 
@@ -77,6 +85,11 @@ private:
                            bool approved,
                            std::string reason);
 
+    // Q8: checks whether an approved purchase of this resource still exists
+    // after excluding the order that is being cancelled.
+    bool hasActivePurchase(const std::string& resourceId,
+                           int excludedOrderNo) const;
+
     Catalog& catalog_;
     Budget& budget_;
     std::vector<PurchaseRecord> history_;
@@ -84,6 +97,9 @@ private:
 
     int printTaxPercent_;
     int electronicTaxPercent_;
+
+    // Q8: order numbers of original approved purchases that were cancelled.
+    std::set<int> cancelledOrders_;
 };
 
 }  // namespace bookmgmt

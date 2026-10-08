@@ -186,6 +186,54 @@ void Budget::commitTitle(ResourceCategory c,
     titles.insert(resourceId);
 }
 
+/*
+ * Q8: Refund a previously approved purchase.
+ *
+ * This reverses exactly the category usage and total spending that
+ * were added by Budget::commit().
+ */
+void Budget::refund(ResourceCategory c, int units, Money cost) {
+    if (units <= 0)
+        throw std::invalid_argument("refund quantity must be positive");
+
+    if (cost.isNegative())
+        throw std::invalid_argument("refund cost must not be negative");
+
+    Usage& u = usage_[c];
+
+    if (units > u.units)
+        throw std::invalid_argument("refund exceeds category unit usage");
+
+    if (cost > u.spent)
+        throw std::invalid_argument("refund exceeds category spend usage");
+
+    if (cost > spent_)
+        throw std::invalid_argument("refund exceeds total budget usage");
+
+    u.units -= units;
+    u.spent -= cost;
+    spent_ -= cost;
+}
+
+/*
+ * Q8: Release a title from Q7 tracking.
+ *
+ * AcquisitionManager calls this only after confirming that no
+ * remaining approved purchase still uses the title.
+ */
+void Budget::releaseTitle(ResourceCategory c,
+                          const std::string& resourceId) {
+    if (resourceId.empty())
+        throw std::invalid_argument("resource id must not be empty");
+
+    auto it = purchasedTitles_.find(c);
+
+    if (it == purchasedTitles_.end())
+        return;
+
+    it->second.erase(resourceId);
+}
+
 void Budget::print(std::ostream& os) const {
     os << "Budget: total " << total_ << ", spent " << spent_ << ", remaining "
        << remaining() << "\n";
