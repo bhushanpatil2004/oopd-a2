@@ -335,106 +335,275 @@ const PurchaseRecord& AcquisitionManager::purchase(
 }
 
 std::vector<PurchaseRecord> AcquisitionManager::processBatch(
-    const std::vector<PurchaseRequest>& reqs) {
+    const std::vector<PurchaseRequest>& reqs,
+    bool allOrNothing) {
 
-    std::vector<PurchaseRecord> results;
-    results.reserve(reqs.size());
+    /*
+     * Q11:
+     *
+     * In normal mode, preserve the existing sequential behaviour.
+     *
+     * In all-or-nothing mode, first validate the complete batch
+     * against temporary copies of the affected department budgets.
+     * Only after every request succeeds do we modify the real
+     * budgets, catalogue holdings and order history.
+     */
 
+    if (!allOrNothing) {
+        std::vector<PurchaseRecord> results;
+        results.reserve(reqs.size());
+
+        for (const auto& req : reqs) {
+
+            const Budget* budget =
+                findDepartmentBudget(req.department);
+
+            const Resource* r =
+                catalog_.find(req.resourceId);
+
+            Money preTaxCost;
+            Money tax;
+            Money postTaxCost;
+            std::string why;
+
+            if (!budget) {
+                why = "department not found: " +
+                      req.department;
+            } else if (!r) {
+                why = "resource not found: " +
+                      req.resourceId;
+            } else if (req.quantity <= 0) {
+                why = "quantity must be positive";
+            } else {
+                // Q7: title limit is checked before spending quotas.
+                why = budget->checkTitle(
+                    r->category(),
+                    r->id());
+
+                if (why.empty()) {
+                    preTaxCost =
+                        purchaseCost(
+                            r,
+                            req.quantity);
+
+                    tax =
+                        taxFor(
+                            r,
+                            preTaxCost);
+
+                    postTaxCost =
+                        preTaxCost + tax;
+
+                    why = budget->check(
+                        r->category(),
+                        req.quantity,
+                        postTaxCost);
+                }
+            }
+
+            if (why.empty()) {
+                Budget& mutableBudget =
+                    departmentBudget(req.department);
+
+                mutableBudget.commit(
+                    r->category(),
+                    req.quantity,
+                    postTaxCost);
+
+                mutableBudget.commitTitle(
+                    r->category(),
+                    r->id());
+
+                catalog_.addHoldings(
+                    req.resourceId,
+                    req.quantity);
+
+                results.push_back(
+                    record(
+                        r,
+                        req.department,
+                        req.resourceId,
+                        req.quantity,
+                        preTaxCost,
+                        tax,
+                        postTaxCost,
+                        true,
+                        {}));
+            } else {
+                results.push_back(
+                    record(
+                        r,
+                        req.department,
+                        req.resourceId,
+                        req.quantity,
+                        preTaxCost,
+                        tax,
+                        postTaxCost,
+                        false,
+                        why));
+            }
+        }
+
+        return results;
+    }
+
+    /*
+     * Q11 all-or-nothing mode.
+     *
+     * Make temporary copies of every department budget.
+     * Budget contains all Q7/Q8/Q10 state, so this also simulates:
+     *
+     *   - spending
+     *   - category unit usage
+     *   - category spend usage
+     *   - title limits
+     *   - purchased-title tracking
+     *
+     * The real budgets are untouched during validation.
+     */
+    std::map<Department, Budget> temporaryBudgets;
+
+    for (const auto& entry : departmentBudgets_) {
+        temporaryBudgets.emplace(
+            entry.first,
+            *entry.second);
+    }
+
+    struct PendingPurchase {
+        const PurchaseRequest* request;
+        const Resource* resource;
+        Money preTaxCost;
+        Money tax;
+        Money postTaxCost;
+    };
+
+    std::vector<PendingPurchase> pending;
+    pending.reserve(reqs.size());
+
+    /*
+     * Validate requests sequentially against the temporary budgets.
+     * This is necessary because an earlier request can affect a later
+     * request in the same batch.
+     */
     for (const auto& req : reqs) {
 
-        const Budget* budget =
-            findDepartmentBudget(req.department);
+        auto budgetIt =
+            temporaryBudgets.find(req.department);
 
         const Resource* r =
             catalog_.find(req.resourceId);
 
-        Money preTaxCost;
-        Money tax;
-        Money postTaxCost;
-        std::string why;
-
-        if (!budget) {
-            why = "department not found: " +
-                  req.department;
-        } else if (!r) {
-            why = "resource not found: " +
-                  req.resourceId;
-        } else if (req.quantity <= 0) {
-            why = "quantity must be positive";
-        } else {
-            // Q7: title limit is checked before spending quotas.
-            why = budget->checkTitle(
-                r->category(),
-                r->id());
-
-            if (why.empty()) {
-                preTaxCost =
-                    purchaseCost(
-                        r,
-                        req.quantity);
-
-                tax =
-                    taxFor(
-                        r,
-                        preTaxCost);
-
-                postTaxCost =
-                    preTaxCost + tax;
-
-                why = budget->check(
-                    r->category(),
-                    req.quantity,
-                    postTaxCost);
-            }
+        if (budgetIt == temporaryBudgets.end()) {
+            return {};
         }
 
-        if (why.empty()) {
-            Budget& mutableBudget =
-                departmentBudget(req.department);
+        if (!r) {
+            return {};
+        }
 
-            mutableBudget.commit(
-                r->category(),
-                req.quantity,
-                postTaxCost);
+        if (req.quantity <= 0) {
+            return {};
+        }
 
-            // Record the title only for an approved purchase.
-            mutableBudget.commitTitle(
+        Budget& temporaryBudget =
+            budgetIt->second;
+
+        std::string why =
+            temporaryBudget.checkTitle(
                 r->category(),
                 r->id());
 
-            catalog_.addHoldings(
-                req.resourceId,
+        if (!why.empty()) {
+            return {};
+        }
+
+        const Money preTaxCost =
+            purchaseCost(
+                r,
                 req.quantity);
 
-            results.push_back(
-                record(
-                    r,
-                    req.department,
-                    req.resourceId,
-                    req.quantity,
-                    preTaxCost,
-                    tax,
-                    postTaxCost,
-                    true,
-                    {}));
-        } else {
-            results.push_back(
-                record(
-                    r,
-                    req.department,
-                    req.resourceId,
-                    req.quantity,
-                    preTaxCost,
-                    tax,
-                    postTaxCost,
-                    false,
-                    why));
+        const Money tax =
+            taxFor(
+                r,
+                preTaxCost);
+
+        const Money postTaxCost =
+            preTaxCost + tax;
+
+        why = temporaryBudget.check(
+            r->category(),
+            req.quantity,
+            postTaxCost);
+
+        if (!why.empty()) {
+            return {};
         }
+
+        /*
+         * Apply the request only to the temporary budget.
+         * This makes subsequent requests see the updated
+         * quota/title usage.
+         */
+        temporaryBudget.commit(
+            r->category(),
+            req.quantity,
+            postTaxCost);
+
+        temporaryBudget.commitTitle(
+            r->category(),
+            r->id());
+
+        pending.push_back(
+            PendingPurchase{
+                &req,
+                r,
+                preTaxCost,
+                tax,
+                postTaxCost
+            });
+    }
+
+    /*
+     * Every request passed validation.
+     * Now commit the entire batch to the real state.
+     */
+    std::vector<PurchaseRecord> results;
+    results.reserve(pending.size());
+
+    for (const auto& item : pending) {
+
+        Budget& budget =
+            departmentBudget(
+                item.request->department);
+
+        budget.commit(
+            item.resource->category(),
+            item.request->quantity,
+            item.postTaxCost);
+
+        budget.commitTitle(
+            item.resource->category(),
+            item.resource->id());
+
+        catalog_.addHoldings(
+            item.request->resourceId,
+            item.request->quantity);
+
+        results.push_back(
+            record(
+                item.resource,
+                item.request->department,
+                item.request->resourceId,
+                item.request->quantity,
+                item.preTaxCost,
+                item.tax,
+                item.postTaxCost,
+                true,
+                {}));
     }
 
     return results;
 }
-
 bool AcquisitionManager::hasActivePurchase(
     const std::string& resourceId,
     int excludedOrderNo) const {

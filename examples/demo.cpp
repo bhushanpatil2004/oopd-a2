@@ -780,5 +780,198 @@ int main() {
                     ResourceCategory::Book)
             << "\n";
 
+         // =========================================================
+    // Q11 — All-or-nothing batch processing
+    // =========================================================
+
+    std::cout
+        << "\n=== Q11 All-or-Nothing Batch ===\n";
+
+    /*
+     * Use a separate catalogue and budget so Q11 is completely
+     * independent of the earlier Q1-Q10 demonstrations.
+     */
+    Catalog q11Catalog;
+
+    q11Catalog.emplace<Book>(
+        "Q11-B1",
+        "First Batch Book",
+        std::vector<std::string>{"Author One"},
+        "ISBN-Q11-1",
+        "Publisher",
+        2026,
+        Money::of(100));
+
+    q11Catalog.emplace<Book>(
+        "Q11-B2",
+        "Second Batch Book",
+        std::vector<std::string>{"Author Two"},
+        "ISBN-Q11-2",
+        "Publisher",
+        2026,
+        Money::of(200));
+
+    q11Catalog.emplace<Book>(
+        "Q11-B3",
+        "Third Batch Book",
+        std::vector<std::string>{"Author Three"},
+        "ISBN-Q11-3",
+        "Publisher",
+        2026,
+        Money::of(300));
+
+    Budget q11Budget(Money::of(2000));
+
+    q11Budget.setQuota(
+        ResourceCategory::Book,
+        {10, Money::of(1500)});
+
+    q11Budget.setTitleLimit(
+        ResourceCategory::Book,
+        3);
+
+    AcquisitionManager q11Acq(
+        q11Catalog,
+        q11Budget);
+
+    // ---------------------------------------------------------
+    // Successful all-or-nothing batch
+    // ---------------------------------------------------------
+
+    std::cout
+        << "\nSuccessful all-or-nothing batch:\n";
+
+    auto q11Success =
+        q11Acq.processBatch(
+            {
+                {"Default", "Q11-B1", 1},
+                {"Default", "Q11-B2", 1}
+            },
+            true);
+
+    for (const auto& result : q11Success) {
+        std::cout
+            << "  "
+            << result.resourceId
+            << " x"
+            << result.quantity
+            << ": "
+            << (result.approved
+                    ? "APPROVED"
+                    : "REJECTED")
+            << "\n";
+    }
+
+    std::cout
+        << "Batch result count: "
+        << q11Success.size()
+        << "\n";
+
+    std::cout
+        << "Budget spent after successful batch: "
+        << q11Budget.spent()
+        << "\n";
+
+    std::cout
+        << "Book titles used: "
+        << q11Budget.titlesUsed(
+               ResourceCategory::Book)
+        << " / 3\n";
+
+    std::cout
+        << "Q11-B1 holdings: "
+        << q11Catalog.holdings("Q11-B1")
+        << "\n";
+
+    std::cout
+        << "Q11-B2 holdings: "
+        << q11Catalog.holdings("Q11-B2")
+        << "\n";
+
+    // ---------------------------------------------------------
+    // Failed all-or-nothing batch
+    // ---------------------------------------------------------
+
+    std::cout
+        << "\nFailed all-or-nothing batch:\n";
+
+    const Money spentBefore =
+        q11Budget.spent();
+
+    const int b3Before =
+        q11Catalog.holdings("Q11-B3");
+
+    const int titlesBefore =
+        q11Budget.titlesUsed(
+            ResourceCategory::Book);
+
+    const std::size_t historyBefore =
+        q11Acq.history().size();
+
+    auto q11Failure =
+        q11Acq.processBatch(
+            {
+                {"Default", "Q11-B3", 1},
+                {"Default", "Q11-UNKNOWN", 1}
+            },
+            true);
+
+    std::cout
+        << "Batch result count: "
+        << q11Failure.size()
+        << "\n";
+
+    std::cout
+        << "Q11-B3 holdings before failed batch: "
+        << b3Before
+        << "\n";
+
+    std::cout
+        << "Q11-B3 holdings after failed batch: "
+        << q11Catalog.holdings("Q11-B3")
+        << "\n";
+
+    std::cout
+        << "Budget spent before failed batch: "
+        << spentBefore
+        << "\n";
+
+    std::cout
+        << "Budget spent after failed batch: "
+        << q11Budget.spent()
+        << "\n";
+
+    std::cout
+        << "Book titles used before failed batch: "
+        << titlesBefore
+        << " / 3\n";
+
+    std::cout
+        << "Book titles used after failed batch: "
+        << q11Budget.titlesUsed(
+               ResourceCategory::Book)
+        << " / 3\n";
+
+    std::cout
+        << "History size before failed batch: "
+        << historyBefore
+        << "\n";
+
+    std::cout
+        << "History size after failed batch: "
+        << q11Acq.history().size()
+        << "\n";
+
+    std::cout
+        << "All-or-nothing result: "
+        << ((q11Failure.empty() &&
+             q11Budget.spent() == spentBefore &&
+             q11Catalog.holdings("Q11-B3") == b3Before &&
+             q11Budget.titlesUsed(
+                 ResourceCategory::Book) == titlesBefore &&
+             q11Acq.history().size() == historyBefore)
+                ? "NOTHING WAS BOUGHT"
+                : "UNEXPECTED STATE")
+        << "\n";
     return 0;
 }

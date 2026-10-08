@@ -87,8 +87,11 @@ public:
 
     // Processes requests in order; each is approved or rejected on its own
     // (never throws for a rejected request). Every outcome is recorded.
+    // Q11: when allOrNothing is true, the entire batch is committed
+    // only if every request can be approved.
     std::vector<PurchaseRecord> processBatch(
-        const std::vector<PurchaseRequest>& reqs);
+        const std::vector<PurchaseRequest>& reqs,
+        bool allOrNothing = false);
 
     // Q8: cancels an approved order, refunds its budget/quota usage,
     // reduces holdings and adds a separate cancellation record.

@@ -1676,6 +1676,213 @@ static void testBudgetRollover() {
         std::invalid_argument);
 }
 
+/*
+ * Q11 — All-or-nothing batch processing
+ */
+static void testAllOrNothingBatch() {
+    Catalog c;
+
+    c.emplace<Book>(
+        "Q11-B1",
+        "First Batch Book",
+        std::vector<std::string>{"Author One"},
+        "ISBN-Q11-1",
+        "Publisher",
+        2026,
+        Money::of(100));
+
+    c.emplace<Book>(
+        "Q11-B2",
+        "Second Batch Book",
+        std::vector<std::string>{"Author Two"},
+        "ISBN-Q11-2",
+        "Publisher",
+        2026,
+        Money::of(200));
+
+    c.emplace<Book>(
+        "Q11-B3",
+        "Third Batch Book",
+        std::vector<std::string>{"Author Three"},
+        "ISBN-Q11-3",
+        "Publisher",
+        2026,
+        Money::of(300));
+
+    Budget b(Money::of(2000));
+
+    b.setQuota(
+        ResourceCategory::Book,
+        {10, Money::of(1500)});
+
+    b.setTitleLimit(
+        ResourceCategory::Book,
+        3);
+
+    AcquisitionManager acq(c, b);
+
+    // ---------------------------------------------------------
+    // Q11 — Successful all-or-nothing batch
+    // ---------------------------------------------------------
+
+    auto successfulBatch = acq.processBatch(
+        {
+            {"Default", "Q11-B1", 1},
+            {"Default", "Q11-B2", 1}
+        },
+        true);
+
+    CHECK(successfulBatch.size() == 2);
+
+    CHECK(successfulBatch[0].approved);
+    CHECK(successfulBatch[1].approved);
+
+    CHECK(
+        b.spent() == Money::of(300));
+
+    CHECK(
+        b.usageFor(
+            ResourceCategory::Book).units == 2);
+
+    CHECK(
+        b.usageFor(
+            ResourceCategory::Book).spent ==
+        Money::of(300));
+
+    CHECK(
+        b.titlesUsed(
+            ResourceCategory::Book) == 2);
+
+    CHECK(c.holdings("Q11-B1") == 1);
+    CHECK(c.holdings("Q11-B2") == 1);
+
+    CHECK(acq.history().size() == 2);
+
+    // ---------------------------------------------------------
+    // Q11 — Failed all-or-nothing batch
+    // ---------------------------------------------------------
+    //
+    // B3 is valid, but Q11-UNKNOWN does not exist.
+    // Therefore NOTHING from this batch should be bought.
+    //
+
+    const Money spentBefore =
+        b.spent();
+
+    const int unitsBefore =
+        b.usageFor(
+            ResourceCategory::Book).units;
+
+    const Money categorySpentBefore =
+        b.usageFor(
+            ResourceCategory::Book).spent;
+
+    const int titlesBefore =
+        b.titlesUsed(
+            ResourceCategory::Book);
+
+    const int b1HoldingsBefore =
+        c.holdings("Q11-B1");
+
+    const int b2HoldingsBefore =
+        c.holdings("Q11-B2");
+
+    const int b3HoldingsBefore =
+        c.holdings("Q11-B3");
+
+    const std::size_t historyBefore =
+        acq.history().size();
+
+    auto failedBatch = acq.processBatch(
+        {
+            {"Default", "Q11-B3", 1},
+            {"Default", "Q11-UNKNOWN", 1}
+        },
+        true);
+
+    // The entire batch is rejected.
+    CHECK(failedBatch.empty());
+
+    // Budget must be completely unchanged.
+    CHECK(b.spent() == spentBefore);
+
+    CHECK(
+        b.usageFor(
+            ResourceCategory::Book).units ==
+        unitsBefore);
+
+    CHECK(
+        b.usageFor(
+            ResourceCategory::Book).spent ==
+        categorySpentBefore);
+
+    // The new title must NOT consume a title slot.
+    CHECK(
+        b.titlesUsed(
+            ResourceCategory::Book) ==
+        titlesBefore);
+
+    // Holdings must be completely unchanged.
+    CHECK(
+        c.holdings("Q11-B1") ==
+        b1HoldingsBefore);
+
+    CHECK(
+        c.holdings("Q11-B2") ==
+        b2HoldingsBefore);
+
+    CHECK(
+        c.holdings("Q11-B3") ==
+        b3HoldingsBefore);
+
+    // No purchase records should be created.
+    CHECK(
+        acq.history().size() ==
+        historyBefore);
+
+    // ---------------------------------------------------------
+    // Q11 — Normal batch behaviour is unchanged
+    // ---------------------------------------------------------
+    //
+    // Without the all-or-nothing option, requests are processed
+    // independently, as in Q1-Q10.
+    //
+
+    auto normalBatch = acq.processBatch(
+        {
+            {"Default", "Q11-B3", 1},
+            {"Default", "Q11-UNKNOWN", 1}
+        });
+
+    CHECK(normalBatch.size() == 2);
+
+    CHECK(normalBatch[0].approved);
+
+    CHECK(!normalBatch[1].approved);
+
+    CHECK(
+        normalBatch[1].reason.find("not found") !=
+        std::string::npos);
+
+    // The valid request remains purchased.
+    CHECK(c.holdings("Q11-B3") == 1);
+
+    CHECK(
+        b.spent() ==
+        Money::of(600));
+
+    CHECK(
+        b.usageFor(
+            ResourceCategory::Book).units == 3);
+
+    CHECK(
+        b.titlesUsed(
+            ResourceCategory::Book) == 3);
+
+    // Only the normal batch created two history records.
+    CHECK(acq.history().size() == 4);
+}
+
 int main() {
     testMoney();
     testResourcesAndCost();
@@ -1689,6 +1896,7 @@ int main() {
     testCancellation();
     testDepartmentBudgets();
     testBudgetRollover();
+    testAllOrNothingBatch();
 
     std::cout
         << (g_checks - g_failures)
