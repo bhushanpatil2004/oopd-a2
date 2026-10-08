@@ -78,11 +78,22 @@ public:
     void releaseTitle(ResourceCategory c,
                       const std::string& resourceId);
 
+    // Q10: create the next year's budget by carrying forward
+    // a percentage of this year's unspent amount.
+    //
+    // The new budget starts with zero usage. Quota and title-limit
+    // configuration is carried forward, but purchase history is not.
+    Budget rollover(int percentage) const;
+
     void print(std::ostream& os) const;
 
 private:
     enum class Failure { None, BadInput, Quota, Overall };
-    Failure evaluate(ResourceCategory c, int units, Money cost, std::string& why) const;
+
+    Failure evaluate(ResourceCategory c,
+                     int units,
+                     Money cost,
+                     std::string& why) const;
 
     Money total_;
     Money spent_;

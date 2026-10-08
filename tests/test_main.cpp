@@ -1566,6 +1566,116 @@ static void testDepartmentBudgets() {
         "Computer Science");
 }
 
+/*
+ * Q10 — Year-end budget rollover
+ */
+static void testBudgetRollover() {
+    Budget current(Money::of(1000));
+
+    current.setQuota(
+        ResourceCategory::Book,
+        {10, Money::of(800)});
+
+    current.setTitleLimit(
+        ResourceCategory::Book,
+        2);
+
+    // Spend 300, leaving 700 unspent.
+    current.commit(
+        ResourceCategory::Book,
+        3,
+        Money::of(300));
+
+    current.commitTitle(
+        ResourceCategory::Book,
+        "Q10-B1");
+
+    CHECK(current.total() == Money::of(1000));
+    CHECK(current.spent() == Money::of(300));
+    CHECK(current.remaining() == Money::of(700));
+
+    CHECK(
+        current.usageFor(ResourceCategory::Book).units == 3);
+
+    CHECK(
+        current.usageFor(ResourceCategory::Book).spent ==
+        Money::of(300));
+
+    CHECK(
+        current.titlesUsed(ResourceCategory::Book) == 1);
+
+    // 50% of the unspent 700 = 350.
+    Budget nextYear = current.rollover(50);
+
+    CHECK(nextYear.total() == Money::of(350));
+    CHECK(nextYear.spent() == Money{});
+    CHECK(nextYear.remaining() == Money::of(350));
+
+    // Category quota configuration is carried forward.
+    CHECK(
+        nextYear.quotaFor(ResourceCategory::Book).has_value());
+
+    CHECK(
+        nextYear.quotaFor(ResourceCategory::Book)->maxUnits == 10);
+
+    CHECK(
+        nextYear.quotaFor(ResourceCategory::Book)->maxSpend ==
+        Money::of(800));
+
+    // Q7 title-limit configuration is carried forward.
+    CHECK(
+        nextYear.titleLimitFor(ResourceCategory::Book).has_value());
+
+    CHECK(
+        *nextYear.titleLimitFor(ResourceCategory::Book) == 2);
+
+    // Actual usage starts from zero in the new year.
+    CHECK(
+        nextYear.usageFor(ResourceCategory::Book).units == 0);
+
+    CHECK(
+        nextYear.usageFor(ResourceCategory::Book).spent ==
+        Money{});
+
+    // Purchased-title history does not carry into the new year.
+    CHECK(
+        nextYear.titlesUsed(ResourceCategory::Book) == 0);
+
+    // The original budget is unchanged.
+    CHECK(current.total() == Money::of(1000));
+    CHECK(current.spent() == Money::of(300));
+    CHECK(current.remaining() == Money::of(700));
+
+    CHECK(
+        current.usageFor(ResourceCategory::Book).units == 3);
+
+    CHECK(
+        current.titlesUsed(ResourceCategory::Book) == 1);
+
+    // 0% rollover creates a zero-value new budget.
+    Budget zeroRollover = current.rollover(0);
+
+    CHECK(zeroRollover.total() == Money{});
+    CHECK(zeroRollover.spent() == Money{});
+    CHECK(zeroRollover.remaining() == Money{});
+
+    // 100% rollover carries the complete unspent amount.
+    Budget fullRollover = current.rollover(100);
+
+    CHECK(fullRollover.total() == Money::of(700));
+    CHECK(fullRollover.spent() == Money{});
+    CHECK(fullRollover.remaining() == Money::of(700));
+
+    // Invalid rollover percentages are rejected.
+    CHECK_THROWS(
+        current.rollover(-1),
+        std::invalid_argument);
+
+    CHECK_THROWS(
+        current.rollover(101),
+        std::invalid_argument);
+}
+
 int main() {
     testMoney();
     testResourcesAndCost();
@@ -1578,11 +1688,12 @@ int main() {
     testAcquisitionTitleLimits();
     testCancellation();
     testDepartmentBudgets();
+    testBudgetRollover();
 
     std::cout
         << (g_checks - g_failures)
         << "/" << g_checks
-        << " checks passed\n";
+        << " checks passed";
 
     return g_failures == 0 ? 0 : 1;
 }

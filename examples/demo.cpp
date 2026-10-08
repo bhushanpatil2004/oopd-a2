@@ -686,9 +686,99 @@ int main() {
 }
 
     std::cout
-        << "Q9 department-aware report:\n";
+    << "\nQ9 department-aware report:\n";
 
     departmentAcq.printReport(std::cout);
+
+    // =========================================================
+    // Q10 — Year-end budget rollover
+    // =========================================================
+
+    std::cout << "\n=== Q10 Year-end Budget Rollover ===\n";
+
+    // Use a separate budget so the rollover demonstration
+    // is independent of the earlier Q1-Q9 examples.
+    Budget yearEndBudget(Money::of(10000));
+
+    yearEndBudget.setQuota(
+        ResourceCategory::Book,
+        {20, Money::of(6000)});
+
+    yearEndBudget.setTitleLimit(
+        ResourceCategory::Book,
+        3);
+
+    // This year's spending: 6000.
+    // Therefore unspent amount = 4000.
+    yearEndBudget.commit(
+        ResourceCategory::Book,
+        6,
+        Money::of(6000));
+
+    yearEndBudget.commitTitle(
+        ResourceCategory::Book,
+        "B001");
+
+    std::cout << "Current year total: "
+            << yearEndBudget.total()
+            << "\n";
+
+    std::cout << "Current year spent: "
+            << yearEndBudget.spent()
+            << "\n";
+
+    std::cout << "Current year unspent: "
+            << yearEndBudget.remaining()
+            << "\n";
+
+    std::cout << "Current year Book titles used: "
+            << yearEndBudget.titlesUsed(
+                    ResourceCategory::Book)
+            << " / "
+            << *yearEndBudget.titleLimitFor(
+                    ResourceCategory::Book)
+            << "\n";
+
+    // Carry forward 50% of the unspent amount.
+    // 50% of 4000 = 2000.
+    Budget nextYearBudget = yearEndBudget.rollover(50);
+
+    std::cout << "\n50% rollover to next year:\n";
+
+    std::cout << "Next year total: "
+            << nextYearBudget.total()
+            << "\n";
+
+    std::cout << "Next year spent: "
+            << nextYearBudget.spent()
+            << "\n";
+
+    std::cout << "Next year remaining: "
+            << nextYearBudget.remaining()
+            << "\n";
+
+    std::cout << "Next year Book quota: "
+            << nextYearBudget.quotaFor(
+                    ResourceCategory::Book)->maxUnits
+            << " units / "
+            << nextYearBudget.quotaFor(
+                    ResourceCategory::Book)->maxSpend
+            << "\n";
+
+    std::cout << "Next year Book title limit: "
+            << *nextYearBudget.titleLimitFor(
+                    ResourceCategory::Book)
+            << "\n";
+
+    std::cout << "Next year Book units used: "
+            << nextYearBudget.usageFor(
+                    ResourceCategory::Book).units
+            << "\n";
+
+    std::cout << "Next year Book titles used: "
+            << nextYearBudget.titlesUsed(
+                    ResourceCategory::Book)
+            << "\n";
 
     return 0;
 }

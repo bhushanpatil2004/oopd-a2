@@ -284,3 +284,67 @@ category quotas, title limits, spending, and title usage.
 
 ```cpp
 using Department = std::string;
+
+
+## Q10 — Year-end Budget Rollover
+
+### Requirement
+Create the next year's budget from the current year's budget by carrying forward a configurable percentage of the unspent amount.
+
+### Design Decision
+I implemented a `Budget::rollover(int percentage)` method.
+
+The rollover percentage must be between 0 and 100. The new budget is calculated from the current year's **unspent amount**, not from the original total budget.
+
+For example:
+
+- Current budget = ₹10,000
+- Current spending = ₹6,000
+- Unspent amount = ₹4,000
+- Rollover percentage = 50%
+- Next year's budget = 50% × ₹4,000 = ₹2,000
+
+### What Is Carried Forward
+
+The following configuration is carried forward to the next year's budget:
+
+- Per-category unit quotas
+- Per-category spending quotas
+- Q7 different-title limits
+
+### What Is Reset
+
+The following values are intentionally reset for the new financial year:
+
+- Amount spent
+- Category usage
+- Purchased-title history
+
+Therefore, a newly created rollover budget starts with zero spending and zero purchased titles.
+
+For example, if the previous year used 6 Book units and purchased 1 Book title, the next year's budget starts with:
+
+- Book units used = 0
+- Book titles used = 0
+
+This is intentional because the previous year's purchases should not count as purchases in the new financial year.
+
+### Original Budget
+
+The original budget is not modified by the rollover operation. The method creates and returns a separate `Budget` object for the next year.
+
+### Validation
+
+The implementation rejects rollover percentages below 0 or above 100.
+
+The tests verify:
+
+- 50% rollover of the unspent amount
+- 0% rollover
+- 100% rollover
+- Carrying forward category quotas
+- Carrying forward title limits
+- Resetting category usage
+- Resetting purchased-title history
+- Preserving the original budget
+- Rejecting invalid percentages
