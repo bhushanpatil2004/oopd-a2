@@ -2298,6 +2298,152 @@ void testCatalogSearches() {
         catalog.searchYearRange(2025, 2020),
         std::invalid_argument);
 }
+
+void testLending() {
+    Catalog catalog;
+
+    // Print resource with 2 copies
+    catalog.emplace<Book>(
+        "B201",
+        "Clean Code",
+        std::vector<std::string>{"Robert C. Martin"},
+        "978-0132350884",
+        "Prentice Hall",
+        2008,
+        Money::of(500),
+        1,
+        Binding::Paperback);
+
+    catalog.addHoldings("B201", 2);
+
+    // Electronic resource with 2 licensed seats
+    catalog.emplace<EBook>(
+        "E201",
+        "Effective Modern C++",
+        std::vector<std::string>{"Scott Meyers"},
+        "978-1491903995",
+        "O'Reilly",
+        2014,
+        Money::of(600),
+        "https://example.com/ebook",
+        LicenseModel::AnnualSubscription,
+        Money::of(50),
+        FileFormat::PDF,
+        true);
+
+    catalog.addHoldings("E201", 2);
+
+    LendingManager lending(catalog);
+
+    // =========================================================
+    // Q14-A: Borrow and return print copies
+    // =========================================================
+
+    CHECK(lending.borrowedCopies("B201") == 0);
+
+    lending.borrowCopy("Alice", "B201");
+    CHECK(lending.borrowedCopies("B201") == 1);
+
+    lending.borrowCopy("Bob", "B201");
+    CHECK(lending.borrowedCopies("B201") == 2);
+
+    // No more copies available
+    CHECK_THROWS(
+        lending.borrowCopy("Charlie", "B201"),
+        std::invalid_argument);
+
+    // Same patron cannot borrow the same copy/resource again
+    CHECK_THROWS(
+        lending.borrowCopy("Alice", "B201"),
+        std::invalid_argument);
+
+    // Return one copy
+    lending.returnCopy("Alice", "B201");
+    CHECK(lending.borrowedCopies("B201") == 1);
+
+    // Now one copy is available again
+    lending.borrowCopy("Charlie", "B201");
+    CHECK(lending.borrowedCopies("B201") == 2);
+
+    // Patron cannot return a copy they did not borrow
+    CHECK_THROWS(
+        lending.returnCopy("David", "B201"),
+        std::invalid_argument);
+
+    // =========================================================
+    // Q14-B: Open and close electronic sessions
+    // =========================================================
+
+    CHECK(lending.openSessions("E201") == 0);
+
+    lending.openSession("Alice", "E201");
+    CHECK(lending.openSessions("E201") == 1);
+
+    lending.openSession("Bob", "E201");
+    CHECK(lending.openSessions("E201") == 2);
+
+    // No licensed seats available
+    CHECK_THROWS(
+        lending.openSession("Charlie", "E201"),
+        std::invalid_argument);
+
+    // Same patron cannot open another session
+    CHECK_THROWS(
+        lending.openSession("Alice", "E201"),
+        std::invalid_argument);
+
+    // Close one session
+    lending.closeSession("Alice", "E201");
+    CHECK(lending.openSessions("E201") == 1);
+
+    // Seat becomes available
+    lending.openSession("Charlie", "E201");
+    CHECK(lending.openSessions("E201") == 2);
+
+    // Patron cannot close a session they do not have
+    CHECK_THROWS(
+        lending.closeSession("David", "E201"),
+        std::invalid_argument);
+
+    // =========================================================
+    // Q14-C: Wrong operation type
+    // =========================================================
+
+    // Print resources use borrowing, not electronic sessions
+    CHECK_THROWS(
+        lending.openSession("Alice", "B201"),
+        std::invalid_argument);
+
+    // Electronic resources use sessions, not print borrowing
+    CHECK_THROWS(
+        lending.borrowCopy("Alice", "E201"),
+        std::invalid_argument);
+
+    // =========================================================
+    // Q14-D: Invalid resource
+    // =========================================================
+
+    CHECK_THROWS(
+        lending.borrowCopy("Alice", "INVALID"),
+        NotFoundError);
+
+    CHECK_THROWS(
+        lending.openSession("Alice", "INVALID"),
+        NotFoundError);
+
+    // =========================================================
+    // Q14-E: Empty patron
+    // =========================================================
+
+    CHECK_THROWS(
+        lending.borrowCopy("", "B201"),
+        std::invalid_argument);
+
+    CHECK_THROWS(
+        lending.openSession("", "E201"),
+        std::invalid_argument);
+}
+
 int main() {
     testMoney();
     testResourcesAndCost();
@@ -2314,6 +2460,7 @@ int main() {
     testAllOrNothingBatch();
     testVendors();
     testCatalogSearches();
+    testLending();
 
     std::cout
         << (g_checks - g_failures)

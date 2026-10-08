@@ -1253,5 +1253,49 @@ int main() {
                   << " - " << r->title()
                   << " (" << r->year() << ")\n";
     }    
+
+    // =========================================================
+    // Q14 — Lending
+    // =========================================================
+
+    std::cout << "\n=== Q14 Lending ===\n";
+
+    LendingManager lending(catalog);
+
+    // Print resource: B001
+    std::cout << "\nBorrowing print copies of B001:\n";
+
+    lending.borrowCopy("Alice", "B001");
+    std::cout << "  Alice borrowed B001\n";
+    std::cout << "  Active borrowed copies: "
+            << lending.borrowedCopies("B001") << "\n";
+
+    lending.borrowCopy("Bob", "B001");
+    std::cout << "  Bob borrowed B001\n";
+    std::cout << "  Active borrowed copies: "
+            << lending.borrowedCopies("B001") << "\n";
+
+    lending.returnCopy("Alice", "B001");
+    std::cout << "  Alice returned B001\n";
+    std::cout << "  Active borrowed copies: "
+            << lending.borrowedCopies("B001") << "\n";
+
+    // Electronic resource: E001
+    std::cout << "\nOpening electronic sessions for E001:\n";
+
+    lending.openSession("Alice", "E001");
+    std::cout << "  Alice opened E001\n";
+    std::cout << "  Open sessions: "
+            << lending.openSessions("E001") << "\n";
+
+    lending.openSession("Bob", "E001");
+    std::cout << "  Bob opened E001\n";
+    std::cout << "  Open sessions: "
+            << lending.openSessions("E001") << "\n";
+
+    lending.closeSession("Alice", "E001");
+    std::cout << "  Alice closed E001\n";
+    std::cout << "  Open sessions: "
+            << lending.openSessions("E001") << "\n";
     return 0;
 }

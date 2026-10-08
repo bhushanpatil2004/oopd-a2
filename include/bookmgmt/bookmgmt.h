@@ -12,3 +12,4 @@
 #include "bookmgmt/EBook.h"
 #include "bookmgmt/AudioBook.h"
 #include "bookmgmt/Thesis.h"
+#include "bookmgmt/Lending.h"
