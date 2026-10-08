@@ -639,3 +639,19 @@ The demo shows INR and USD amounts, performs a same-currency addition, and demon
 ### Design decision
 
 The currency is stored directly inside `Money` so that currency consistency is enforced at the value-operation level. This prevents accidental addition, subtraction, or comparison of monetary values belonging to different currencies while keeping the existing fixed-point representation.
+
+## Q16 — Code Cleanliness
+
+The test macros `CHECK` and `CHECK_THROWS` were removed and replaced with standard C++ `assert`.
+
+Ordinary checks now use `assert(condition)`. Exception checks use a small templated `assertThrows` helper that executes the expression and verifies that the required exception type is thrown.
+
+The existing test expressions and their meanings were kept unchanged.
+
+The manual test counters were removed because the standard `assert` mechanism is now used for validating test conditions.
+
+### Design Decision
+
+A templated `assertThrows` helper was used instead of a macro so that exception checking remains type-safe C++ code while preserving the behavior of the original `CHECK_THROWS` tests.
+
+Q16 is a test-code cleanup task and does not introduce a new library feature, so no additional functionality was required in `examples/demo.cpp`.
