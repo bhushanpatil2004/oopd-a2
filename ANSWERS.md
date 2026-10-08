@@ -583,3 +583,16 @@ Final automated test result:
 ```
 
 The demo was also executed successfully and demonstrates the functionality added through Q1–Q11.
+
+
+Q13 — Catalog Searches
+
+Implementation:
+- Added search by author using case-insensitive partial matching for Book and EBook authors.
+- Added search by ISBN/ISSN using case-insensitive exact matching.
+- ISBN search supports Book and EBook resources, while ISSN search supports Journal resources.
+- Added inclusive publication-year range search across catalog resources.
+- Invalid year ranges where fromYear > toYear throw std::invalid_argument.
+
+Design decision:
+The search operations are implemented in Catalog because Catalog owns the resources and already provides the general search infrastructure.

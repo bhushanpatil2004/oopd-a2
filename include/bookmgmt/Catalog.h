@@ -13,10 +13,8 @@ namespace bookmgmt {
 
 class Catalog {
 public:
-    // Takes ownership. Throws DuplicateIdError if the id is already present.
     Resource& add(std::unique_ptr<Resource> r);
 
-    // Convenience: catalog.emplace<Book>(ctor args...)
     template <typename T, typename... Args>
     T& emplace(Args&&... args) {
         auto p = std::make_unique<T>(std::forward<Args>(args)...);
@@ -26,23 +24,40 @@ public:
     }
 
     bool contains(const std::string& id) const;
-    Resource* find(const std::string& id);              // nullptr if absent
-    const Resource* find(const std::string& id) const;  // nullptr if absent
-    Resource& get(const std::string& id);               // throws NotFoundError
-    const Resource& get(const std::string& id) const;   // throws NotFoundError
-    void remove(const std::string& id);                 // throws NotFoundError
+
+    Resource* find(const std::string& id);
+    const Resource* find(const std::string& id) const;
+
+    Resource& get(const std::string& id);
+    const Resource& get(const std::string& id) const;
+
+    void remove(const std::string& id);
 
     std::size_t size() const { return items_.size(); }
     bool empty() const { return items_.empty(); }
 
-    // Holdings: number of copies (print) or seats (electronic) owned.
     int holdings(const std::string& id) const;
     void addHoldings(const std::string& id, int units);
 
-    // Queries. Results are in id order and point into the catalog.
     std::vector<const Resource*> all() const;
+
     std::vector<const Resource*> byCategory(ResourceCategory c) const;
-    std::vector<const Resource*> searchTitle(const std::string& text) const;  // case-insensitive
+
+    std::vector<const Resource*> searchTitle(
+        const std::string& text) const;
+
+    // Q13: Search by author.
+    std::vector<const Resource*> searchAuthor(
+        const std::string& author) const;
+
+    // Q13: Search by ISBN or ISSN.
+    std::vector<const Resource*> searchIsbnIssn(
+        const std::string& identifier) const;
+
+    // Q13: Search by inclusive publication-year range.
+    std::vector<const Resource*> searchYearRange(
+        int fromYear, int toYear) const;
+
     std::vector<const Resource*> where(
         const std::function<bool(const Resource&)>& pred) const;
 
@@ -51,7 +66,8 @@ private:
         std::unique_ptr<Resource> resource;
         int holdings = 0;
     };
+
     std::map<std::string, Entry> items_;
 };
 
-}  // namespace bookmgmt
+} // namespace bookmgmt

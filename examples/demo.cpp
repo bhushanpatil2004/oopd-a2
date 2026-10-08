@@ -1191,5 +1191,67 @@ int main() {
         << "  Q12-B2: "
         << q12Catalog.holdings("Q12-B2")
         << " copies\n";
+
+        // =========================================================
+    // Q13 — Catalog Searches
+    // =========================================================
+
+    std::cout << "\n=== Q13 Catalog Searches ===\n";
+
+    // ---------------------------------------------------------
+    // Search by author
+    // ---------------------------------------------------------
+
+    std::cout << "\nSearch by author: Robert C. Martin\n";
+
+    auto authorResults =
+        catalog.searchAuthor("Robert C. Martin");
+
+    for (const Resource* r : authorResults) {
+        std::cout << "  " << r->id()
+                  << " - " << r->title()
+                  << "\n";
+    }
+
+    // ---------------------------------------------------------
+    // Search by ISBN / ISSN
+    // ---------------------------------------------------------
+
+    std::cout << "\nSearch by ISBN: 978-0132350884\n";
+
+    auto isbnResults =
+        catalog.searchIsbnIssn("978-0132350884");
+
+    for (const Resource* r : isbnResults) {
+        std::cout << "  " << r->id()
+                  << " - " << r->title()
+                  << "\n";
+    }
+
+    std::cout << "\nSearch by ISSN: 0360-0300\n";
+
+    auto issnResults =
+        catalog.searchIsbnIssn("0360-0300");
+
+    for (const Resource* r : issnResults) {
+        std::cout << "  " << r->id()
+                  << " - " << r->title()
+                  << "\n";
+    }
+
+    // ---------------------------------------------------------
+    // Search by publication-year range
+    // ---------------------------------------------------------
+
+    std::cout << "\nSearch publication years: 2013 to 2020\n";
+
+    auto yearResults =
+        catalog.searchYearRange(2013, 2020);
+
+    for (const Resource* r : yearResults) {
+        std::cout << "  " << r->id()
+                  << " - " << r->title()
+                  << " (" << r->year() << ")\n";
+    }    
     return 0;
 }

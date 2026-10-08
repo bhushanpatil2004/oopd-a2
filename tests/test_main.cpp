@@ -2170,6 +2170,134 @@ static void testVendors() {
         NotFoundError);
 }
 
+void testCatalogSearches() {
+    Catalog catalog;
+
+    catalog.emplace<Book>(
+        "B101",
+        "Clean Code",
+        std::vector<std::string>{"Robert C. Martin"},
+        "978-0132350884",
+        "Prentice Hall",
+        2008,
+        Money::of(500),
+        1,
+        Binding::Paperback);
+
+    catalog.emplace<Book>(
+        "B102",
+        "The C++ Programming Language",
+        std::vector<std::string>{"Bjarne Stroustrup"},
+        "978-0321563842",
+        "Addison-Wesley",
+        2013,
+        Money::of(700),
+        4,
+        Binding::Hardcover);
+
+    catalog.emplace<Journal>(
+        "J101",
+        "Journal of Computer Science",
+        "1234-5678",
+        12,
+        "Academic Press",
+        2020,
+        Money::of(1000),
+        1);
+
+    // =========================================================
+    // Q13-A: Search by author
+    // =========================================================
+
+    auto authorResults =
+        catalog.searchAuthor("Robert C. Martin");
+
+    CHECK(authorResults.size() == 1);
+    CHECK(authorResults[0]->id() == "B101");
+
+    // Case-insensitive search.
+    auto caseInsensitiveAuthor =
+        catalog.searchAuthor("robert c. martin");
+
+    CHECK(caseInsensitiveAuthor.size() == 1);
+    CHECK(caseInsensitiveAuthor[0]->id() == "B101");
+
+    // Partial author search.
+    auto partialAuthor =
+        catalog.searchAuthor("stroustrup");
+
+    CHECK(partialAuthor.size() == 1);
+    CHECK(partialAuthor[0]->id() == "B102");
+
+    // Unknown author.
+    auto missingAuthor =
+        catalog.searchAuthor("Unknown Author");
+
+    CHECK(missingAuthor.empty());
+
+    // =========================================================
+    // Q13-B: Search by ISBN / ISSN
+    // =========================================================
+
+    auto isbnResults =
+        catalog.searchIsbnIssn("978-0132350884");
+
+    CHECK(isbnResults.size() == 1);
+    CHECK(isbnResults[0]->id() == "B101");
+
+    auto secondIsbnResults =
+        catalog.searchIsbnIssn("978-0321563842");
+
+    CHECK(secondIsbnResults.size() == 1);
+    CHECK(secondIsbnResults[0]->id() == "B102");
+
+    auto issnResults =
+        catalog.searchIsbnIssn("1234-5678");
+
+    CHECK(issnResults.size() == 1);
+    CHECK(issnResults[0]->id() == "J101");
+
+    // Unknown ISBN/ISSN.
+    auto missingIdentifier =
+        catalog.searchIsbnIssn("0000-0000");
+
+    CHECK(missingIdentifier.empty());
+
+    // =========================================================
+    // Q13-C: Search by publication year range
+    // =========================================================
+
+    auto rangeResults =
+        catalog.searchYearRange(2013, 2020);
+
+    CHECK(rangeResults.size() == 2);
+    CHECK(rangeResults[0]->id() == "B102");
+    CHECK(rangeResults[1]->id() == "J101");
+
+    // Inclusive single-year range.
+    auto singleYear =
+        catalog.searchYearRange(2013, 2013);
+
+    CHECK(singleYear.size() == 1);
+    CHECK(singleYear[0]->id() == "B102");
+
+    // Range covering all resources.
+    auto allYears =
+        catalog.searchYearRange(2008, 2020);
+
+    CHECK(allYears.size() == 3);
+
+    // Range with no matching resources.
+    auto noResults =
+        catalog.searchYearRange(2021, 2025);
+
+    CHECK(noResults.empty());
+
+    // Invalid range.
+    CHECK_THROWS(
+        catalog.searchYearRange(2025, 2020),
+        std::invalid_argument);
+}
 int main() {
     testMoney();
     testResourcesAndCost();
@@ -2185,6 +2313,7 @@ int main() {
     testBudgetRollover();
     testAllOrNothingBatch();
     testVendors();
+    testCatalogSearches();
 
     std::cout
         << (g_checks - g_failures)
