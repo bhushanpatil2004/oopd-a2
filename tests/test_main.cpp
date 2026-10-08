@@ -45,6 +45,49 @@ static void testMoney() {
     CHECK_THROWS(Money::of(1, 100), std::invalid_argument);
 }
 
+static void testMoneyCurrencies() {
+    Money inr = Money::of(100, 50, "INR");
+    Money usd = Money::of(100, 50, "USD");
+
+    CHECK(inr.currency() == "INR");
+    CHECK(usd.currency() == "USD");
+
+    CHECK(Money::of(10) == Money::of(10, 0, "INR"));
+    CHECK(Money::fromMinor(1250, "INR").toString() == "12.50");
+
+    CHECK(Money::of(10, 25, "INR") +
+              Money::of(5, 75, "INR") ==
+          Money::of(16, 0, "INR"));
+
+    CHECK(Money::of(10, 25, "INR") -
+              Money::of(5, 25, "INR") ==
+          Money::of(5, 0, "INR"));
+
+    CHECK_THROWS(
+        Money::of(10, 0, "INR") +
+            Money::of(10, 0, "USD"),
+        std::invalid_argument);
+
+    CHECK_THROWS(
+        Money::of(10, 0, "INR") -
+            Money::of(10, 0, "USD"),
+        std::invalid_argument);
+
+    CHECK_THROWS(
+        Money::of(10, 0, "INR") ==
+            Money::of(10, 0, "USD"),
+        std::invalid_argument);
+
+    CHECK_THROWS(
+        Money::of(10, 0, "INR") <
+            Money::of(20, 0, "USD"),
+        std::invalid_argument);
+
+    CHECK_THROWS(
+        Money::of(10, 0, "") ,
+        std::invalid_argument);
+}
+
 static void testResourcesAndCost() {
     Book b(
         "B1",
@@ -2461,6 +2504,7 @@ int main() {
     testVendors();
     testCatalogSearches();
     testLending();
+    testMoneyCurrencies();
 
     std::cout
         << (g_checks - g_failures)

@@ -5,11 +5,79 @@
 
 namespace bookmgmt {
 
-Money Money::of(std::int64_t major, int minor) {
+namespace {
+
+void checkCurrency(const Money& a, const Money& b) {
+    if (a.currency() != b.currency()) {
+        throw std::invalid_argument(
+            "cannot operate on different currencies");
+    }
+}
+
+}  // namespace
+
+Money Money::fromMinor(std::int64_t minor,
+                       const std::string& currency) {
+    if (currency.empty()) {
+        throw std::invalid_argument("currency code cannot be empty");
+    }
+
+    return Money(minor, currency);
+}
+
+Money Money::of(std::int64_t major,
+                int minor,
+                const std::string& currency) {
     if (minor < 0 || minor > 99)
         throw std::invalid_argument("minor part must be in 0..99");
+
+    if (currency.empty())
+        throw std::invalid_argument("currency code cannot be empty");
+
     const std::int64_t sign = major < 0 ? -1 : 1;
-    return Money(major * 100 + sign * minor);
+    return Money(major * 100 + sign * minor, currency);
+}
+
+Money& Money::operator+=(Money o) {
+    checkCurrency(*this, o);
+    minor_ += o.minor_;
+    return *this;
+}
+
+Money& Money::operator-=(Money o) {
+    checkCurrency(*this, o);
+    minor_ -= o.minor_;
+    return *this;
+}
+
+bool operator==(Money a, Money b) {
+    checkCurrency(a, b);
+    return a.minor_ == b.minor_;
+}
+
+bool operator!=(Money a, Money b) {
+    checkCurrency(a, b);
+    return a.minor_ != b.minor_;
+}
+
+bool operator<(Money a, Money b) {
+    checkCurrency(a, b);
+    return a.minor_ < b.minor_;
+}
+
+bool operator<=(Money a, Money b) {
+    checkCurrency(a, b);
+    return a.minor_ <= b.minor_;
+}
+
+bool operator>(Money a, Money b) {
+    checkCurrency(a, b);
+    return a.minor_ > b.minor_;
+}
+
+bool operator>=(Money a, Money b) {
+    checkCurrency(a, b);
+    return a.minor_ >= b.minor_;
 }
 
 std::string Money::toString() const {
@@ -22,6 +90,8 @@ std::string Money::toString() const {
     return minor_ < 0 ? "-" + s : s;
 }
 
-std::ostream& operator<<(std::ostream& os, Money m) { return os << m.toString(); }
+std::ostream& operator<<(std::ostream& os, Money m) {
+    return os << m.toString();
+}
 
 }  // namespace bookmgmt

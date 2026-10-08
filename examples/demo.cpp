@@ -1297,5 +1297,29 @@ int main() {
     std::cout << "  Alice closed E001\n";
     std::cout << "  Open sessions: "
             << lending.openSessions("E001") << "\n";
+
+        // Q15: Currency-aware Money
+    std::cout << "\n=== Q15 Currency ===\n";
+
+    Money inr = Money::of(100, 50, "INR");
+    Money usd = Money::of(100, 50, "USD");
+
+    std::cout << "INR amount: " << inr << " " << inr.currency() << "\n";
+    std::cout << "USD amount: " << usd << " " << usd.currency() << "\n";
+
+    Money inrTotal = Money::of(10, 25, "INR") +
+                     Money::of(5, 75, "INR");
+
+    std::cout << "INR addition: " << inrTotal << " "
+              << inrTotal.currency() << "\n";
+
+    try {
+        Money invalid = inr + usd;
+        std::cout << "Different currency result: "
+                  << invalid << "\n";
+    } catch (const std::invalid_argument& e) {
+        std::cout << "Different currency operation rejected: "
+                  << e.what() << "\n";
+    }
     return 0;
 }

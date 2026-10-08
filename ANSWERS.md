@@ -596,3 +596,46 @@ Implementation:
 
 Design decision:
 The search operations are implemented in Catalog because Catalog owns the resources and already provides the general search infrastructure.
+
+
+The Q14 demo demonstrates both print-copy borrowing/returning and electronic-resource session opening/closing.
+
+## Q15 — Money Currency
+
+### Implementation
+
+I added a currency code to the `Money` class while preserving the existing `Money::of()` and `Money::fromMinor()` interfaces through default currency values.
+
+Each `Money` object now stores:
+- The amount in minor units.
+- A currency code such as `INR` or `USD`.
+
+The default currency is `INR` so that the existing code and previous questions continue to work without modification.
+
+### Currency validation
+
+Addition, subtraction, and all comparison operations check that both `Money` objects use the same currency.
+
+If the currencies are different, the operation throws `std::invalid_argument`.
+
+Multiplication by an integer does not require a currency check because it operates on a single `Money` object.
+
+### Tests
+
+The tests verify:
+- Currency codes are stored correctly.
+- Existing `Money::of()` calls continue to work.
+- `Money::fromMinor()` supports a currency code.
+- Addition and subtraction work for matching currencies.
+- Addition with different currencies throws an exception.
+- Subtraction with different currencies throws an exception.
+- Comparison of different currencies throws an exception.
+- Empty currency codes are rejected.
+
+### Demo
+
+The demo shows INR and USD amounts, performs a same-currency addition, and demonstrates rejection of an operation involving different currencies.
+
+### Design decision
+
+The currency is stored directly inside `Money` so that currency consistency is enforced at the value-operation level. This prevents accidental addition, subtraction, or comparison of monetary values belonging to different currencies while keeping the existing fixed-point representation.
