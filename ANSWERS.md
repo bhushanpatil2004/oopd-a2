@@ -217,3 +217,59 @@ For example:
 
 ```text
 Book title limit = 2
+
+## Q8 — Cancellation
+
+### Design decision
+
+An approved purchase can be cancelled using its order number.
+
+The original approved purchase record is kept unchanged in the order
+history, and a separate cancellation record is added. The cancellation
+record is marked with `cancellation = true`.
+
+When an order is cancelled:
+
+- The post-tax purchase cost is refunded to the overall budget.
+- The category's unit usage is reduced.
+- The category's spending usage is reduced.
+- Catalog holdings are reduced by the cancelled quantity.
+- The title limit is released only when no other active approved order
+  still uses the same resource.
+- A cancelled order cannot be cancelled again.
+- Rejected orders and cancellation records cannot be cancelled.
+- An unknown order number raises `NotFoundError`.
+
+The cancellation implementation was added to `AcquisitionManager`, while
+`Budget` provides `refund()` and `releaseTitle()` to restore the relevant
+budget and title-limit state.
+
+### History and reporting
+
+The original purchase remains in `history()`. A separate cancellation
+record is appended to the history so that the complete sequence of
+actions is preserved.
+
+Cancelled purchases are excluded from active spending totals and budget
+reports. Cancellation records have zero cost because the original
+purchase amount has already been refunded.
+
+### Testing
+
+Tests verify:
+
+1. Cancellation of an approved order.
+2. Refund of overall budget usage.
+3. Refund of category unit and spending quotas.
+4. Reduction of catalog holdings.
+5. Preservation of a title slot when another active purchase uses the
+   same title.
+6. Release of the title slot after the final active purchase of that
+   title is cancelled.
+7. Purchasing a new title after the slot is released.
+8. Rejection of cancellation for rejected orders.
+9. Rejection of repeated cancellation.
+10. Rejection of cancellation records.
+11. `NotFoundError` for an unknown order number.
+12. Preservation of the original purchase record and creation of a
+    separate cancellation record.
