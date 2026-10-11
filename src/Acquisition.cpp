@@ -8,7 +8,7 @@
 #include "bookmgmt/Book.h"
 #include "bookmgmt/ElectronicResource.h"
 #include "bookmgmt/Exceptions.h"
-#include "bookmgmt/Journal.h"
+#include "bookmgmt/MT26034_Journal.h"
 
 namespace bookmgmt {
 

@@ -1,6 +1,6 @@
 #pragma once
 // Umbrella header: #include "bookmgmt/bookmgmt.h" to get the whole library.
-#include "bookmgmt/Journal.h"
+#include "bookmgmt/MT26034_Journal.h"
 #include "bookmgmt/Acquisition.h"
 #include "bookmgmt/Book.h"
 #include "bookmgmt/Budget.h"
@@ -9,7 +9,7 @@
 #include "bookmgmt/Exceptions.h"
 #include "bookmgmt/Money.h"
 #include "bookmgmt/Resource.h"
-#include "bookmgmt/EBook.h"
-#include "bookmgmt/AudioBook.h"
-#include "bookmgmt/Thesis.h"
-#include "bookmgmt/Lending.h"
+#include "bookmgmt/MT26034_EBook.h"
+#include "bookmgmt/MT26034_AudioBook.h"
+#include "bookmgmt/MT26034_Thesis.h"
+#include "bookmgmt/MT26034_Lending.h"

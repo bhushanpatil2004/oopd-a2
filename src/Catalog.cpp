@@ -5,8 +5,8 @@
 #include <stdexcept>
 
 #include "bookmgmt/Book.h"
-#include "bookmgmt/EBook.h"
-#include "bookmgmt/Journal.h"
+#include "bookmgmt/MT26034_EBook.h"
+#include "bookmgmt/MT26034_Journal.h"
 #include "bookmgmt/Exceptions.h"
 
 namespace bookmgmt {
