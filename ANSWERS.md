@@ -2,7 +2,7 @@
 
 ## Questions Attempted
 
-I attempted all questions from Q1 to Q11.
+I attempted all questions from Q1 to Q16. The following sections describe the implementation, design decisions, and testing performed for each question.
 
 ---
 
@@ -13,19 +13,28 @@ Added a `Journal` resource to the existing resource hierarchy.
 ### Design
 
 - `Journal` derives from `Resource`.
-- It stores the number of issues published per year and the subscription duration.
-- Journal cost is calculated using the unit price, number of copies, and subscription years.
-- Invalid subscription years and issue counts are rejected.
+- It stores the ISSN, number of issues published per year, and subscription duration.
 - The default subscription duration is one year.
+- Subscription duration must be at least one year.
+- Invalid subscription durations and issue counts are rejected.
+- The annual subscription price is used to calculate the cost of purchasing journal copies over the selected subscription period.
+- `Journal` has its own `ResourceCategory` value so that journal purchases can have separate quotas.
+- `printDetails()` displays the journal-specific fields.
+
+The cost is calculated as:
+
+```text
+costFor(copies) = unitPrice × copies × subscriptionYears
+```
 
 ### Testing
 
-Tests were added for:
+Tests cover:
 
-- Journal category
+- Journal category and properties
 - Journal pricing
 - Subscription duration
-- Issues per year
+- Number of issues per year
 - Invalid subscription values
 - Polymorphic behaviour
 - Journal budget quotas
@@ -40,10 +49,18 @@ Added an `EBook` resource for electronic books.
 
 - `EBook` derives from `ElectronicResource`.
 - It stores authors, ISBN, file format, and DRM information.
-- The existing electronic-resource pricing mechanism is reused.
 - Supported file formats include PDF, EPUB, and HTML.
+- The existing electronic-resource pricing mechanism is reused.
+- `EBook` has its own `ResourceCategory` value so that e-books can have quotas separate from other electronic resources.
+- `printDetails()` calls the parent implementation before displaying the additional e-book information.
 
-A separate bibliographic-information class could have been used with composition, but inheritance was kept here because an EBook is an electronic resource and needs its access and licensing behaviour.
+### Design Question: Avoiding Duplication
+
+Some bibliographic information and related operations are common to both `Book` and `EBook`. These can be duplicated when the two classes maintain separate implementations for authors, ISBN, and other shared metadata.
+
+A possible improvement would be to extract the common bibliographic information into a reusable class and use composition. This would reduce duplication while allowing `Book` and `EBook` to retain their distinct physical and electronic access behaviours.
+
+Inheritance was retained in this implementation because an `EBook` is an electronic resource and needs its access and licensing behaviour.
 
 ### Testing
 
@@ -51,10 +68,8 @@ Tests cover:
 
 - EBook category
 - Digital-resource behaviour
-- ISBN
-- Authors
-- File format
-- DRM
+- ISBN and authors
+- File format and DRM
 - Pricing
 - Polymorphism
 - EBook quotas
@@ -63,42 +78,43 @@ Tests cover:
 
 ## Q3 — AudioBook and Thesis
 
-Added `AudioBook` and `Thesis` resources.
-
-### Design
-
-- `AudioBook` derives from `ElectronicResource` because it requires electronic access and licensing behaviour.
-- `Thesis` derives directly from `Resource` because it is a catalogue item and is normally free rather than being an electronically licensed resource.
+Added `AudioBook` and `Thesis` resources to the class hierarchy.
 
 ### AudioBook
 
-Stores:
+`AudioBook` derives from `ElectronicResource` because it requires electronic access and licensing behaviour.
+
+It stores:
 
 - Narrator
 - Duration in minutes
 - Electronic access information
 - Licensing information
 
+The existing electronic-resource pricing mechanism is reused.
+
 ### Thesis
 
-Stores:
+`Thesis` derives directly from `Resource` because it represents a catalogue item rather than a separately licensed electronic platform resource.
+
+It stores:
 
 - University
 - Degree
 - Supervisor
 
-Thesis cost is zero because theses are normally free in this assignment model.
+Thesis cost is zero in this assignment model because theses are treated as normally free resources.
 
 ### Testing
 
-Tests were added for:
+Tests cover:
 
 - AudioBook category and properties
 - AudioBook pricing
 - Thesis category and properties
 - Thesis free pricing
 - Polymorphic behaviour
-- Separate quotas
+- Separate category quotas
 
 ---
 
@@ -124,8 +140,8 @@ Tests verify:
 
 - Paperback pricing
 - Hardcover pricing
-- Multiple copy quantities
-- Correct 20% hardcover increase
+- Multiple-copy quantities
+- The correct 20% hardcover increase
 
 ---
 
@@ -137,19 +153,17 @@ Two bulk-pricing rules were implemented.
 
 Print resources receive a 10% discount when 10 or more copies are purchased at once.
 
-In the implementation, the following categories are treated as print-resource categories for this rule:
+The following categories are treated as print-resource categories for this rule:
 
 - `Book`
 - `Journal`
 - `Thesis`
 
-The discount is implemented in `AcquisitionManager` because it depends on the quantity of a purchase rather than the resource's normal unit pricing.
+The discount is implemented in `AcquisitionManager` because it depends on the quantity of a purchase rather than only on the resource's normal unit pricing.
 
 ### Electronic Resources
 
-For electronic resources, the first 50 seats are charged at the normal seat price.
-
-Every seat beyond the 50th costs half price.
+For electronic resources, the first 50 seats are charged at the normal seat price. Every seat beyond the 50th costs half price.
 
 This rule is implemented in `ElectronicResource::costFor()`.
 
@@ -161,7 +175,7 @@ Tests cover:
 - Print purchases at 10 copies
 - Electronic purchases at 50 seats
 - Electronic purchases above 50 seats
-- Electronic purchases with multiple extra seats
+- Electronic purchases containing multiple seats beyond the 50th
 
 ---
 
@@ -171,18 +185,18 @@ Configurable tax rates were added for print and electronic resources.
 
 ### Design
 
-The resource's normal cost remains the **pre-tax cost**.
+The resource's normal cost is treated as the pre-tax cost.
 
-The acquisition process then performs the following sequence:
+The acquisition process follows this sequence:
 
 1. Calculate the resource cost.
-2. Apply the Q5 bulk-discount rules.
-3. Calculate tax using the configured category tax rate.
+2. Apply the applicable bulk-discount rules.
+3. Calculate tax using the configured tax rate.
 4. Calculate the post-tax cost.
 5. Check the budget and category quotas using the post-tax cost.
 6. Commit the post-tax cost when the purchase is approved.
 
-Two configurable rates are supported:
+Two configurable tax rates are supported:
 
 - Print tax rate
 - Electronic tax rate
@@ -196,9 +210,6 @@ The acquisition report shows:
 - Pre-tax cost
 - Tax
 - Post-tax cost
-
-It also reports:
-
 - Pre-tax total
 - Tax total
 - Post-tax total
@@ -221,34 +232,25 @@ A specific test verifies that a purchase can be rejected when its pre-tax cost i
 
 ## Q7 — Different-Title Limits
 
-A limit was added on the number of different titles that may be purchased in each category.
+Added a limit on the number of different titles that may be purchased in each category.
 
 ### Design
 
 The title limit is maintained by `Budget`.
 
-Each category can have an optional maximum number of different titles.
-
-For example:
-
-```text
-Book title limit = 2
-```
-
-The resource ID is used as the title identity because every catalogue resource has a unique ID.
+Each category can have an optional maximum number of different titles. The resource ID is used as the title identity because every catalogue resource has a unique ID.
 
 The title limit is separate from the existing unit and spending quotas.
 
 A purchase of an already-used title does not consume another title slot.
 
-For example, if the Book title limit is 2 and `B001` has already been purchased, purchasing more copies of `B001` does not increase the number of different titles used.
+For example, if the Book title limit is two and `B001` has already been purchased, purchasing more copies of `B001` does not increase the number of different titles used.
 
 ### Testing
 
-Tests verify:
+Tests cover:
 
-- Setting a title limit
-- Reading a title limit
+- Setting and reading a title limit
 - Counting titles used
 - Purchasing different titles
 - Purchasing the same title multiple times
@@ -256,7 +258,7 @@ Tests verify:
 - Zero title limits
 - Invalid negative title limits
 - Batch processing with title limits
-- Preservation of title usage when a purchase is rejected
+- Preserving title usage when a purchase is rejected
 
 ---
 
@@ -264,7 +266,7 @@ Tests verify:
 
 Approved purchases can be cancelled using their order number.
 
-### Design Decision
+### Design
 
 The original approved purchase record is kept in the order history, and a separate cancellation record is added.
 
@@ -277,30 +279,28 @@ cancellation = true;
 When an order is cancelled:
 
 - The post-tax purchase cost is refunded to the overall budget.
-- The category's unit usage is reduced.
-- The category's spending usage is reduced.
+- Category unit usage is reduced.
+- Category spending usage is reduced.
 - Catalogue holdings are reduced by the cancelled quantity.
-- The title limit is released only when no other active approved order still uses the same resource.
+- The title limit is released only when no other active approved order uses the same resource.
 - A cancelled order cannot be cancelled again.
 - Rejected orders cannot be cancelled.
 - Cancellation records cannot be cancelled.
 - An unknown order number raises `NotFoundError`.
 
-The cancellation implementation was added to `AcquisitionManager`, while `Budget` provides `refund()` and `releaseTitle()` to restore the relevant budget and title-limit state.
+The cancellation implementation is handled by `AcquisitionManager`, while `Budget` provides the refund and title-release operations.
 
 ### History and Reporting
 
 The original purchase remains in `history()`.
 
-A separate cancellation record is appended to the history so that the complete sequence of actions is preserved.
+A separate cancellation record is appended so that the complete sequence of actions is preserved.
 
-Cancelled purchases are excluded from active spending totals and budget reports.
-
-Cancellation records have zero cost because the original purchase amount has already been refunded.
+Cancelled purchases are excluded from active spending totals and budget reports. Cancellation records have zero cost because the original purchase amount has already been refunded.
 
 ### Testing
 
-Tests verify:
+Tests cover:
 
 1. Cancellation of an approved order.
 2. Refund of overall budget usage.
@@ -308,8 +308,8 @@ Tests verify:
 4. Refund of category spending usage.
 5. Reduction of catalogue holdings.
 6. Preservation of a title slot when another active purchase uses the same title.
-7. Release of the title slot after the final active purchase of that title is cancelled.
-8. Purchasing a new title after the slot is released.
+7. Release of the title slot after the final active purchase is cancelled.
+8. Purchasing a new title after a slot is released.
 9. Rejection of cancellation for rejected orders.
 10. Rejection of repeated cancellation.
 11. Rejection of cancellation records.
@@ -340,7 +340,7 @@ Each department has its own `Budget` object containing:
 using Department = std::string;
 ```
 
-The purchase request contains the department that should be charged:
+A purchase request contains the department that should be charged:
 
 ```cpp
 struct PurchaseRequest {
@@ -365,19 +365,15 @@ The acquisition manager supports:
 - Department-specific purchases
 - Department-specific batch processing
 
-Each department's quotas are checked independently.
-
-For example, a Book title limit reached by the Physics department does not affect the Computer Science department.
+Each department's quotas are checked independently. For example, a Book title limit reached by the Physics department does not affect the Computer Science department.
 
 ### Cancellation
 
-Cancellation uses the department stored in the original purchase record.
-
-Therefore, when a department purchase is cancelled, the refund is applied to the correct department's budget.
+Cancellation uses the department stored in the original purchase record. Therefore, the refund is applied to the correct department's budget.
 
 ### Testing
 
-Tests verify:
+Tests cover:
 
 - Separate budgets for different departments
 - Department-specific spending
@@ -385,7 +381,7 @@ Tests verify:
 - Department-specific title limits
 - Department-aware purchase requests
 - Department-aware purchase history
-- Rejection of purchases when a department quota is exceeded
+- Rejection when a department quota is exceeded
 - Unknown department handling
 - Correct department refund during cancellation
 
@@ -393,11 +389,11 @@ Tests verify:
 
 ## Q10 — Year-End Budget Rollover
 
-Create the next year's budget from the current year's budget by carrying forward a configurable percentage of the unspent amount.
+Implemented year-end budget rollover to create the next year's budget by carrying forward a configurable percentage of the unspent amount.
 
-### Design Decision
+### Design
 
-I implemented:
+The implemented interface is:
 
 ```cpp
 Budget Budget::rollover(int percentage) const;
@@ -405,15 +401,15 @@ Budget Budget::rollover(int percentage) const;
 
 The rollover percentage must be between 0 and 100.
 
-The new budget is calculated from the current year's **unspent amount**, not from the original total budget.
+The new budget is calculated from the current year's unspent amount, not from the original total budget.
 
 For example:
 
 ```text
-Current budget  = ₹10,000
+Current budget   = ₹10,000
 Current spending = ₹6,000
-Unspent amount  = ₹4,000
-Rollover        = 50%
+Unspent amount   = ₹4,000
+Rollover         = 50%
 
 Next year's budget = 50% × ₹4,000
                    = ₹2,000
@@ -421,44 +417,31 @@ Next year's budget = 50% × ₹4,000
 
 ### What Is Carried Forward
 
-The following configuration is carried forward to the next year's budget:
+The following configuration is carried forward:
 
 - Per-category unit quotas
 - Per-category spending quotas
-- Q7 different-title limits
+- Different-title limits
 
 ### What Is Reset
 
-The following values are intentionally reset for the new financial year:
+The following values are reset for the new financial year:
 
 - Amount spent
 - Category usage
 - Purchased-title history
 
-Therefore, a newly created rollover budget starts with zero spending and zero purchased titles.
+Therefore, the new rollover budget starts with zero spending and zero purchased titles.
 
-For example, if the previous year used 6 Book units and purchased 1 Book title, the next year's budget starts with:
-
-```text
-Book units used  = 0
-Book titles used = 0
-```
-
-This is intentional because the previous year's purchases should not count as purchases in the new financial year.
-
-### Original Budget
-
-The original budget is not modified by the rollover operation.
-
-The method creates and returns a separate `Budget` object for the next year.
+The original budget remains unchanged. The rollover method returns a separate `Budget` object for the next year.
 
 ### Validation
 
-The implementation rejects rollover percentages below 0 or above 100.
+Rollover percentages below 0 or above 100 are rejected.
 
 ### Testing
 
-Tests verify:
+Tests cover:
 
 - 50% rollover of the unspent amount
 - 0% rollover
@@ -474,13 +457,11 @@ Tests verify:
 
 ## Q11 — All-or-Nothing Batch Processing
 
-An option was added to make `processBatch()` operate in an all-or-nothing mode.
+Added an option to make `processBatch()` operate in all-or-nothing mode.
 
-### Requirement
+### Interface
 
-The existing batch-processing behaviour is preserved, while an optional flag allows a complete batch to be accepted or rejected as one unit.
-
-The interface is:
+The implemented interface is:
 
 ```cpp
 std::vector<PurchaseRecord> processBatch(
@@ -490,29 +471,13 @@ std::vector<PurchaseRecord> processBatch(
 
 ### Normal Mode
 
-When:
-
-```cpp
-allOrNothing == false
-```
-
-the existing sequential behaviour is preserved.
-
-Each request is processed independently. Therefore, one request may be approved even if a later request is rejected.
+When `allOrNothing` is `false`, the existing sequential behaviour is preserved. Each request is processed independently, so one request may be approved even if a later request is rejected.
 
 ### All-or-Nothing Mode
 
-When:
+When `allOrNothing` is `true`, the complete batch is validated before modifying the real system state.
 
-```cpp
-allOrNothing == true
-```
-
-the complete batch is validated before modifying the real system state.
-
-Temporary copies of the department budgets are used during validation.
-
-These temporary budgets simulate:
+Temporary copies of the department budgets are used during validation. These temporary budgets simulate:
 
 - Overall budget spending
 - Category unit usage
@@ -532,8 +497,6 @@ If every request passes validation:
 4. Catalogue holdings are increased.
 5. Purchase records are added to history.
 
-Thus, the entire batch is committed only after the complete batch has been validated successfully.
-
 ### Failed Batch
 
 If any request fails validation:
@@ -544,114 +507,205 @@ If any request fails validation:
 - No catalogue holdings are changed.
 - No purchase records are added to history.
 
-The all-or-nothing operation returns an empty result because no request from the failed batch was actually processed as a purchase.
+The all-or-nothing operation returns an empty result because no purchase from the failed batch was committed.
 
 ### Testing
 
-Tests verify:
+Tests cover:
 
-1. A valid all-or-nothing batch approves all requests.
-2. All requests in a successful batch affect the budget.
-3. All requests in a successful batch update catalogue holdings.
-4. Different titles consume the appropriate title slots.
-5. A batch containing an invalid resource is rejected completely.
-6. A valid request before the invalid request is not purchased.
-7. Budget spending remains unchanged after a failed batch.
-8. Category unit usage remains unchanged after a failed batch.
-9. Category spending usage remains unchanged after a failed batch.
-10. Title usage remains unchanged after a failed batch.
-11. Catalogue holdings remain unchanged after a failed batch.
-12. Order history remains unchanged after a failed batch.
-13. Existing normal batch-processing behaviour remains unchanged.
-
-The final test suite passes:
-
-```text
-344/344 checks passed
-```
+- A valid all-or-nothing batch
+- Budget and quota updates after a successful batch
+- Catalogue holding updates
+- Different-title usage
+- Rejection of a batch containing an invalid resource
+- No purchase of earlier valid requests when a later request fails
+- Unchanged budget spending after failure
+- Unchanged category unit and spending usage after failure
+- Unchanged title usage after failure
+- Unchanged catalogue holdings after failure
+- Unchanged order history after failure
+- Preservation of normal batch-processing behaviour
 
 ---
 
-## Final Verification
+## Q12 — Vendors
 
-All questions from Q1 to Q11 were implemented with corresponding tests and demo examples.
+Added vendor-aware pricing so that the same catalogue resource can be offered by multiple vendors at different prices.
 
-Final automated test result:
+### Design
 
-```text
-344/344 checks passed
-```
+- Vendor offers store the vendor name and price for a resource.
+- Multiple vendor offers can be registered for the same resource.
+- The acquisition manager selects the cheapest registered offer.
+- Vendor-aware pricing is used when calculating quotations and purchases.
+- Approved purchase records store the vendor used.
+- The acquisition history and reports display vendor information.
+- Resources without registered vendor offers continue to use their normal pricing.
 
-The demo was also executed successfully and demonstrates the functionality added through Q1–Q11.
+The selected vendor and its price are associated with the resource being purchased, allowing the acquisition system to choose the most economical available offer.
 
+### Demo
 
-Q13 — Catalog Searches
+The demo demonstrates:
 
-Implementation:
-- Added search by author using case-insensitive partial matching for Book and EBook authors.
-- Added search by ISBN/ISSN using case-insensitive exact matching.
-- ISBN search supports Book and EBook resources, while ISSN search supports Journal resources.
-- Added inclusive publication-year range search across catalog resources.
-- Invalid year ranges where fromYear > toYear throw std::invalid_argument.
+- Registering multiple vendors for a resource
+- Selecting the cheapest vendor
+- Updating the selected vendor when a cheaper offer is registered
+- Selecting a cheapest vendor for another resource
+- Displaying the selected vendor in quotations and purchase records
+- Showing vendor information in batch purchases and reports
 
-Design decision:
-The search operations are implemented in Catalog because Catalog owns the resources and already provides the general search infrastructure.
+### Testing
 
+The vendor-related tests and demo exercise the selection of the cheapest available offer and the recording of vendor information in purchase history.
 
-The Q14 demo demonstrates both print-copy borrowing/returning and electronic-resource session opening/closing.
+---
 
-## Q15 — Money Currency
+## Q13 — Catalogue Searches
+
+Added catalogue search operations by author, ISBN/ISSN, and publication-year range.
 
 ### Implementation
 
-I added a currency code to the `Money` class while preserving the existing `Money::of()` and `Money::fromMinor()` interfaces through default currency values.
+- Author search supports case-insensitive partial matching for `Book` and `EBook` authors.
+- ISBN search supports `Book` and `EBook` resources.
+- ISSN search supports `Journal` resources.
+- Publication-year search uses an inclusive year range across catalogue resources.
+- An invalid range where `fromYear > toYear` throws `std::invalid_argument`.
 
-Each `Money` object now stores:
-- The amount in minor units.
-- A currency code such as `INR` or `USD`.
+### Design Decision
 
-The default currency is `INR` so that the existing code and previous questions continue to work without modification.
+The search operations are implemented in `Catalog` because it owns the resources and provides the catalogue search infrastructure.
 
-### Currency validation
+The assignment's Q13 requirements are limited to searching. Catalogue save/load is not included in the newer question list.
 
-Addition, subtraction, and all comparison operations check that both `Money` objects use the same currency.
+### Testing and Demo
 
-If the currencies are different, the operation throws `std::invalid_argument`.
+The tests and demo cover catalogue searches by author, ISBN/ISSN, and publication-year range.
 
-Multiplication by an integer does not require a currency check because it operates on a single `Money` object.
+---
 
-### Tests
+## Q14 — Lending
 
-The tests verify:
-- Currency codes are stored correctly.
-- Existing `Money::of()` calls continue to work.
-- `Money::fromMinor()` supports a currency code.
-- Addition and subtraction work for matching currencies.
-- Addition with different currencies throws an exception.
-- Subtraction with different currencies throws an exception.
-- Comparison of different currencies throws an exception.
-- Empty currency codes are rejected.
+The lending functionality supports borrowing and returning print copies and opening and closing sessions on electronic resources.
+
+### Design
+
+For print resources:
+
+- Patrons can borrow available copies.
+- Borrowing is limited by the number of copies held.
+- Borrowed copies can be returned.
+
+For electronic resources:
+
+- Patrons can open and close electronic-resource sessions.
+- Active sessions are limited by the number of licensed seats.
+
+The lending operations enforce the available-copy and licensed-seat limits.
+
+### Demo
+
+The demo demonstrates print-copy borrowing and returning, as well as opening and closing electronic-resource sessions.
+
+---
+
+## Q15 — Money Currency
+
+Added a currency code to the `Money` class.
+
+### Implementation
+
+The existing `Money::of()` and `Money::fromMinor()` interfaces are preserved through default currency values.
+
+Each `Money` object stores:
+
+- The amount in minor currency units
+- A currency code, such as `INR` or `USD`
+
+The default currency is `INR`, allowing existing calls to continue working without modification.
+
+### Currency Validation
+
+Addition, subtraction, and comparison operations check that both `Money` objects use the same currency.
+
+If the currencies differ, the operation throws `std::invalid_argument`.
+
+Multiplication by an integer operates on a single `Money` object and does not require a currency comparison.
+
+### Testing
+
+Tests cover:
+
+- Storage of currency codes
+- Existing `Money::of()` calls
+- `Money::fromMinor()` with a currency code
+- Addition and subtraction with matching currencies
+- Addition with different currencies
+- Subtraction with different currencies
+- Comparison of different currencies
+- Rejection of empty currency codes
 
 ### Demo
 
 The demo shows INR and USD amounts, performs a same-currency addition, and demonstrates rejection of an operation involving different currencies.
 
-### Design decision
+### Design Decision
 
-The currency is stored directly inside `Money` so that currency consistency is enforced at the value-operation level. This prevents accidental addition, subtraction, or comparison of monetary values belonging to different currencies while keeping the existing fixed-point representation.
+The currency is stored directly inside `Money` so that currency consistency is enforced at the value-operation level. This prevents accidental addition, subtraction, or comparison of monetary values belonging to different currencies while retaining the fixed-point representation.
+
+---
 
 ## Q16 — Code Cleanliness
 
-The test macros `CHECK` and `CHECK_THROWS` were removed and replaced with standard C++ `assert`.
+Replaced the test macros `CHECK` and `CHECK_THROWS` with standard C++ `assert` and a templated `assertThrows` helper.
 
-Ordinary checks now use `assert(condition)`. Exception checks use a small templated `assertThrows` helper that executes the expression and verifies that the required exception type is thrown.
+### Implementation
 
-The existing test expressions and their meanings were kept unchanged.
-
-The manual test counters were removed because the standard `assert` mechanism is now used for validating test conditions.
+- Ordinary test checks use `assert(condition)`.
+- Exception checks use a templated `assertThrows` helper that verifies whether the required exception type is thrown.
+- The original test expressions and their intended meanings are preserved.
+- The manual test counters were removed because standard `assert` is now used for validating test conditions.
 
 ### Design Decision
 
-A templated `assertThrows` helper was used instead of a macro so that exception checking remains type-safe C++ code while preserving the behavior of the original `CHECK_THROWS` tests.
+A templated `assertThrows` helper was used instead of a macro so that exception checking remains type-safe C++ code while preserving the purpose of the original `CHECK_THROWS` tests.
 
 Q16 is a test-code cleanup task and does not introduce a new library feature, so no additional functionality was required in `examples/demo.cpp`.
+
+---
+
+## Final Verification
+
+The project was configured and built using CMake. The test executable and demo were run successfully.
+
+### Build and Test Commands
+
+```bash
+cmake -S . -B build
+cmake --build build -j2
+./build/bookmgmt_tests
+./build/demo
+ctest --test-dir build --output-on-failure
+```
+
+### Verification Results
+
+- The project compiled successfully.
+- The test executable reported `All tests passed`.
+- The demo executed and displayed the implemented functionality.
+- CTest reported `1/1` test passed and `100% tests passed, 0 tests failed`.
+
+The successful test run verifies the test suite included in the submitted project. It does not, by itself, establish that every possible edge case has been tested.
+
+### Submission Contents
+
+The submission should contain the complete project directory, including:
+
+- Source and header files
+- `CMakeLists.txt`
+- Tests
+- Demo source code
+- `README.md`
+- This `ANSWERS.md`
+- The `.git` directory, as required by the assignment
