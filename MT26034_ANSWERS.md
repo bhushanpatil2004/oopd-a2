@@ -712,3 +712,97 @@ The submission should contain the complete project directory, including:
 - `README.md`
 - This `ANSWERS.md`
 - The `.git` directory, as required by the assignment
+
+
+# MT26034 — AI Prompt History
+## OOPD Assignment 2: BookManagement
+
+### 1. Initial Code Generation
+
+I want new fresh codes from the start of the assignment so please give the codes little bit creative, less complex but effiecient.
+
+### 2. Start from the First Question
+
+start uploading from the 1st one
+
+### 3. Project Implementation and Development
+
+Develop the BookManagement C++ project according to the OOPD Assignment 2 requirements. Implement the required resource classes, inheritance, polymorphism, pricing, quotes, budgets, order management, reports, and other assignment features. Keep the code readable, efficient, and consistent with the existing project structure. Add tests and ensure the project builds successfully.
+
+
+### 4. Q10 — Year-end Budget Rollover
+
+Year-end rollover. Create next year’s budget from this year’s, carrying forward a configurable percentage of the unspent amount.
+
+### 5. Q11 — All-or-Nothing Batch Processing
+
+Implement all-or-nothing batch processing according to the assignment requirements. Ensure that a failed batch does not leave partial purchases or unintended changes to budget, holdings, quotas, title usage, or order history.
+
+
+### 6. Q12 — Vendor Selection
+
+Implement vendor pricing and selection according to the assignment requirements. Compare eligible vendor offers, use the required selection rule, and record the selected vendor and purchase cost in the order history.
+
+
+### 7. Q13 — Catalog Searches
+
+Add searches by author, by ISBN/ISSN, and by a range of publication years.
+
+### 8. Q14 — Lending
+
+Implement lending functionality according to the assignment requirements, including borrowing print copies and opening and closing electronic sessions where applicable.
+
+
+### 9. Q15 — Currency-aware Money
+
+Implement currency-aware money handling according to the assignment requirements. Ensure that operations involving different currencies follow the specified rules and that monetary amounts are displayed with their currency.
+
+
+### 10. Q16 — Code Cleanliness
+
+Review the code-cleanliness requirements and make the required cleanup without weakening the test suite. The recorded implementation treated Q16 as a test-code cleanup task rather than a new runtime feature.
+
+### 11. Rename Resource and Lending Files
+
+now i want to change 4 files name journal,ebook,audiobook, thesis with .h and .cpp files as MT26034_Filename.h or .cpp and if any i have created in this project other than this also
+
+### 12. Check the Lending Files
+
+did we created lending.h??
+
+### 13. Rename All Ten Files and Update References
+
+i need only one command to change these 10 files name with the MT26034_ as a prefix and then their change of names where they inherited
+
+### 14. Commit and Push the Changes
+
+now git add and git commit git push
+
+### 15. Rename the Answers Document
+
+also the name of the answerd.md to MT26034_filename and its reference
+
+### 16. Remove the Extra B001 File
+
+also another B001 created i want to delete it
+
+### 17. Display the Demo Output
+
+i need the output command for demo
+
+### 18. Diagnose the Missing Q16 Demo Output
+
+why the 16 th question output not able to see
+
+### 19. Clone the Latest Repository
+
+now want to clone it
+
+### 20. Final Build and Testing
+
+Build the project, run the automated tests, verify the demo output, and ensure that the final source files and documentation are synchronized with the GitHub repository before preparing the submission ZIP.
+
+
+### 21. General AI-Assisted Development Instructions
+
+For all implementation and debugging tasks, inspect the existing project before editing. Follow the assignment statement, preserve working functionality, update references when files are renamed, and avoid unrelated changes. Build the project and run the tests after modifications. Report actual results and do not claim success without verification.
